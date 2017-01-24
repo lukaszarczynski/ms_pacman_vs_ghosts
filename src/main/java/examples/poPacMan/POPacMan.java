@@ -28,7 +28,7 @@ public class POPacMan extends PacmanController {
                 int ghostLocation = game.getGhostCurrentNodeIndex(ghost);
                 if (ghostLocation != -1) {
                     if (game.getShortestPathDistance(current, ghostLocation) < MIN_DISTANCE) {
-                        System.out.println("MOVE (away from ghost): " + game.getNextMoveAwayFromTarget(current, ghostLocation, DM.PATH));
+                        // System.out.println("MOVE (away from ghost): " + game.getNextMoveAwayFromTarget(current, ghostLocation, DM.PATH));
                         return game.getNextMoveAwayFromTarget(current, ghostLocation, DM.PATH);
                     }
                 }
@@ -51,7 +51,7 @@ public class POPacMan extends PacmanController {
         }
 
         if (minGhost != null) {
-            System.out.println("MOVE (edible ghost): " + game.getNextMoveTowardsTarget(current, game.getGhostCurrentNodeIndex(minGhost), DM.PATH));
+            // System.out.println("MOVE (edible ghost): " + game.getNextMoveTowardsTarget(current, game.getGhostCurrentNodeIndex(minGhost), DM.PATH));
             return game.getNextMoveTowardsTarget(current, game.getGhostCurrentNodeIndex(minGhost), DM.PATH);
         }
 
@@ -85,7 +85,7 @@ public class POPacMan extends PacmanController {
                     targets.add(powerPills[i]);
                 }
             } catch (Exception e) {
-                System.out.println("Exception: " + e);
+                // System.out.println("Exception: " + e);
                 continue;
             }
         }
@@ -97,7 +97,7 @@ public class POPacMan extends PacmanController {
                 targetsArray[i] = targets.get(i);
             }
             //return the next direction once the closest target has been identified
-            System.out.println("MOVE (closest target): " + game.getNextMoveTowardsTarget(current, game.getClosestNodeIndexFromNodeIndex(current, targetsArray, DM.PATH), DM.PATH));
+            // System.out.println("MOVE (closest target): " + game.getNextMoveTowardsTarget(current, game.getClosestNodeIndexFromNodeIndex(current, targetsArray, DM.PATH), DM.PATH));
             return game.getNextMoveTowardsTarget(current, game.getClosestNodeIndexFromNodeIndex(current, targetsArray, DM.PATH), DM.PATH);
         }
 
@@ -107,12 +107,12 @@ public class POPacMan extends PacmanController {
         MOVE[] moves = game.getPossibleMoves(current, game.getPacmanLastMoveMade());
         if (moves.length > 0) {
             MOVE selectedMove = moves[random.nextInt(moves.length)];
-            System.out.println("MOVE (random): " + selectedMove);
+            // System.out.println("MOVE (random): " + selectedMove);
             return selectedMove;
         }
 
         // Must be possible to turn around
-        System.out.println("MOVE (opposite): " + game.getPacmanLastMoveMade().opposite());
+        // System.out.println("MOVE (opposite): " + game.getPacmanLastMoveMade().opposite());
         return game.getPacmanLastMoveMade().opposite();
     }
 }
