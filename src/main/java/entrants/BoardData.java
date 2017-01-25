@@ -1,6 +1,8 @@
 package entrants;
 
 import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 
 import pacman.game.Constants.GHOST;
 import pacman.game.comms.BasicMessage;
@@ -35,7 +37,9 @@ interface IBoardData {
 	public DataTime getPacmanIndex();
 	public void setGhostIndex(GHOST ghost, int index);
 	public void setGhostIndex(GHOST ghost, int index, int time);
-	public DataTime getGhostIndex(GHOST ghost);	
+	public DataTime getGhostIndex(GHOST ghost);
+	public LinkedList<Integer> getRemainingPillIndices();
+	public LinkedList<Integer> getRemainingPowerPillsIndices();
 }
 
 
@@ -59,8 +63,8 @@ public class BoardData implements IBoardData {
 	private Game game;
 	private Node[] nodes;
 	private Maze maze;
-	private int[] pillIndices;
-	private int[] powerPillIndices;
+	private LinkedList<Integer> pillIndices;
+	private LinkedList<Integer> powerPillIndices;
 	private int level = -1;
 	private final int pacmanInitIndex = 978;
 	
@@ -101,14 +105,16 @@ public class BoardData implements IBoardData {
 		}
 		
 		// dostawiamy tabletki
-		pillIndices = maze.pillIndices;
-		for (int pillIndex : pillIndices) {
+		pillIndices = new LinkedList<Integer>();
+		for (int pillIndex : maze.pillIndices) {
+			pillIndices.add(pillIndex);
 			setBoardElement(pillIndex, pillChar);
 		}
 		
 		// dostawiamy potężne tabletki
-		powerPillIndices = maze.powerPillIndices;
-		for (int powerPillIndex : powerPillIndices) {
+		powerPillIndices = new LinkedList<Integer>();
+		for (int powerPillIndex : maze.powerPillIndices) {
+			powerPillIndices.add(powerPillIndex);
 			setBoardElement(powerPillIndex, powerPillChar);
 		}
 		
@@ -137,21 +143,27 @@ public class BoardData implements IBoardData {
 	}
 	
 	private void updatePills() {
-		for (int pillIndex : pillIndices) {
+		Iterator<Integer> it = pillIndices.iterator();
+		while (it.hasNext()) {
+			int pillIndex = it.next();
 			if (isPill(pillIndex) &&
-					game.isNodeObservable(pillIndex) &&
-					!game.isPillStillAvailable(game.getPillIndex(pillIndex))) {
+							game.isNodeObservable(pillIndex) &&
+							!game.isPillStillAvailable(game.getPillIndex(pillIndex))) {
 				clearElement(pillIndex);
+				it.remove();
 			}
 		}
 	}
 	
 	private void updatePowerPills() {
-		for (int powerPillIndex : powerPillIndices) {
+		Iterator<Integer> it = powerPillIndices.iterator();
+		while (it.hasNext()) {
+			int powerPillIndex = it.next();
 			if (isPowerPill(powerPillIndex) &&
-					game.isNodeObservable(powerPillIndex) &&
-					!game.isPowerPillStillAvailable(game.getPowerPillIndex(powerPillIndex))) {
+						game.isNodeObservable(powerPillIndex) &&
+						!game.isPowerPillStillAvailable(game.getPowerPillIndex(powerPillIndex))) {
 				clearElement(powerPillIndex);
+				it.remove();
 			}
 		}
 	}
@@ -305,6 +317,14 @@ public class BoardData implements IBoardData {
 	
 	public DataTime getGhostIndex(GHOST ghost) {
 		return ghostIndices.getOrDefault(ghost, null);
+	}
+
+	public LinkedList<Integer> getRemainingPillIndices() {
+		return pillIndices;
+	}
+	
+	public LinkedList<Integer> getRemainingPowerPillsIndices() {
+		return powerPillIndices;
 	}
 	
 	private boolean compareIndexCoords(int index, int x, int y) {
