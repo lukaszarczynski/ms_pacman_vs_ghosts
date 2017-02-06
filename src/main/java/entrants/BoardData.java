@@ -5,10 +5,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 
 import pacman.game.Constants.GHOST;
-import pacman.game.comms.BasicMessage;
 import pacman.game.comms.Message;
 import pacman.game.comms.Message.MessageType;
-import pacman.game.comms.Messenger;
 import pacman.game.Game;
 import pacman.game.internal.Maze;
 import pacman.game.internal.Node;
@@ -17,6 +15,7 @@ import pacman.game.internal.Node;
 /** Co najmniej te metody chcemy udostępniać. */
 interface IBoardData {
 	public void update(Game game);
+	public SmartMessenger getSmartMessenger();
 	public String toString();
 	
 	public boolean isWall(int x, int y);
@@ -71,8 +70,9 @@ public class BoardData implements IBoardData {
 	private DataTime pacmanIndex;
 	private EnumMap<GHOST, DataTime> ghostIndices = new EnumMap<>(GHOST.class);
 
-	private boolean messaging = false;
 	private final GHOST clientGhost;
+	private boolean messaging = false;
+	private SmartMessenger smartMessanger;
 	
 	
 	/** Konstruktor dla pacmana. */
@@ -120,6 +120,10 @@ public class BoardData implements IBoardData {
 		
 		// inicjacja początkowymi pozycjami pacmana i duchów
 		initPositions();
+		
+		if (messaging) {
+			smartMessanger = new SmartMessenger(clientGhost, game);
+		}
 	}
 	
 	/** Aktualizacja stanów. Metoda powinna być wywołana na początku
@@ -138,7 +142,8 @@ public class BoardData implements IBoardData {
 			initPositions();
 		}
 		if (messaging) {
-			getMessages();
+			smartMessanger.update(game);
+			getAndProcessMessages();
 		}
 	}
 	
@@ -173,7 +178,9 @@ public class BoardData implements IBoardData {
 		if (pacmanCurrentIndex >= 0) {
 			setPacmanIndex(pacmanCurrentIndex);
 			if (messaging) {
-				sendMessagePacmanSeen(pacmanCurrentIndex);
+				smartMessanger.broadcastMessagePacmanSeen(pacmanCurrentIndex);
+//    			System.out.format("%d. %s wysyła info o pacmanie, że jest on w %d\n",
+//    			game.getCurrentLevelTime(), clientGhost, pacmanCurrentIndex); 
 			}
 		}
 	}
@@ -184,33 +191,16 @@ public class BoardData implements IBoardData {
 			if (ghostCurrentIndex >= 0) {
 				setGhostIndex(ghost, ghostCurrentIndex);
 				if (messaging && ghost == clientGhost) {
-					sendMessageIAm(ghostCurrentIndex);
+					smartMessanger.broadcastMessageIAm(ghostCurrentIndex);
+//			    	System.out.format("%d. %s wysyła info o sobie, że jest w %d\n",
+//	    			game.getCurrentLevelTime(), clientGhost, ghostCurrentIndex); 
 				}
 			}
 		}
 	}
 	
-	private void sendMessagePacmanSeen(int index) {
-		broadcastMessage(MessageType.PACMAN_SEEN, index);
-//    	System.out.format("%d. %s wysyła info o pacmanie, że jest on w %d\n",
-//    			game.getCurrentLevelTime(), clientGhost, index); 
-	}
-	
-	private void sendMessageIAm(int index) {
-		broadcastMessage(MessageType.I_AM, index);
-//    	System.out.format("%d. %s wysyła info o sobie, że jest w %d\n",
-//    			game.getCurrentLevelTime(), clientGhost, index); 
-	}
-	
-	private void broadcastMessage(MessageType type, int data) {
-		Messenger messenger = game.getMessenger();
-		messenger.addMessage(
-				new BasicMessage(clientGhost, null, type, data, game.getCurrentLevelTime()));
-	}
-	
-	private void getMessages() {
-		Messenger messenger = game.getMessenger();
-        for (Message message : messenger.getMessages(clientGhost)) {
+	private void getAndProcessMessages() {
+        for (Message message : smartMessanger.getCurrentMessages()) {
             if (message.getType() == MessageType.PACMAN_SEEN) {
 //            	System.out.format("%d. %s odbiera od %s info o pacmanie podczas %d, posiadając dane z %d\n",
 //            			game.getCurrentLevelTime(), clientGhost, message.getSender(), message.getTick(), getPacmanIndex().time); 
@@ -367,6 +357,12 @@ public class BoardData implements IBoardData {
 		return nodes[index].y;
 	}
 	
+	
+	public SmartMessenger getSmartMessenger() {
+		return smartMessanger;
+	}
+	
+	
 	/** Zamienia w stringa informacje o grze i planszę. Duszki są oznaczone
 	 *  przez ich pierwsze litery, pacman i reszta planszy wg zmiennych wallChar itd. */
 	public String toString() {
@@ -382,6 +378,7 @@ public class BoardData implements IBoardData {
 			str += String.format("%s %d, ", ghost, getGhostIndex(ghost).time);
 		}
 		str += String.format("pacman %d\n", getPacmanIndex().time);
+//		str += "###" + game.getGameState() + "^^^\n";
 		
 		// wstawienie duszków i pacmana na planszę
 		char[][] boardCopy = new char[board.length][];
