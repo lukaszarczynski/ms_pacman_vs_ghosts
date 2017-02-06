@@ -1,9 +1,6 @@
 package entrants;
 
 import pacman.game.Game;
-
-import java.util.ArrayList;
-
 import pacman.game.Constants.GHOST;
 import pacman.game.comms.Messenger;
 import pacman.game.comms.BasicMessage;
@@ -11,21 +8,37 @@ import pacman.game.comms.Message;
 import pacman.game.comms.Message.MessageType;
 
 interface ISmartMessanger {
+	public void update(Game game);
 	
+	public void sendRawMessage(GHOST recipient, MessageType type, int data, int tick);
+	public void broadcastRawMessage(MessageType type, int data, int tick);
+	public void sendMessage(GHOST recipient, MessageType type, int data);
+	public void broadcastMessage(MessageType type, int data);	
+	public void broadcastMessagePacmanSeen(int data);
+	public void broadcastMessagePacmanSeen();
+	public void broadcastMessageIAm(int data);
+	public void broadcastMessageIAm();
+	public void broadcastMessageIAmHeading(int data);
+	
+	public MessageList getCurrentMessages();
+	public MessageList getMessagesHistory();
 }
 
-public class SmartMessenger {
+
+/** Klasa do wysyłania wiadomości. Przechowuje także historię odebranych
+ *  i wysłanych przez siebie wiadomości. */
+public class SmartMessenger implements ISmartMessanger {
 	private Game game;
 	private Messenger defaultMessenger;
-	private GHOST sender;
-	private ArrayList<Message> messagesHistory;
+	private GHOST senderGhost;
+	private MessageList messagesHistory;
 	
 	/** Konstruktory klasy SmartMessenger. Być może wygodnie nie wywoływać ich
 	 *  nigdzie bezpośrednio, tylko wziąć potrzebny obiekt z obiektu klasy
 	 *  BoardData poprzez metodę getSmartMessenger(). */
 	public SmartMessenger(GHOST sender) {
-		this.sender = sender;
-		messagesHistory = new ArrayList<>();
+		this.senderGhost = sender;
+		messagesHistory = new MessageList();
 	}
 	public SmartMessenger(GHOST sender, Game game) {
 		this(sender);
@@ -41,7 +54,7 @@ public class SmartMessenger {
 	 *  
 	 *  Technicznie nic nie stoi na przeszkodzie, aby w tych intach wysyłać cokolwiek. */
 	public void sendRawMessage(GHOST recipient, MessageType type, int data, int tick) {
-		BasicMessage newMessage = new BasicMessage(sender, recipient, type, data, tick);
+		BasicMessage newMessage = new BasicMessage(senderGhost, recipient, type, data, tick);
 		defaultMessenger.addMessage(newMessage);
 		messagesHistory.add(newMessage);
 	}
@@ -77,7 +90,7 @@ public class SmartMessenger {
 	}
 	
 	public void broadcastMessageIAm() {
-		broadcastMessageIAm(game.getGhostCurrentNodeIndex(sender));
+		broadcastMessageIAm(game.getGhostCurrentNodeIndex(senderGhost));
 	}
 
 	public void broadcastMessageIAmHeading(int data) {
@@ -88,13 +101,13 @@ public class SmartMessenger {
 	
 	/** Zwraca tablicę z wiadomościami przeznaczonymi dla danego duszka, 
 	 *  które przyszły w bieżącym tiku. */
-	public ArrayList<Message> getCurrentMessages() {
-		return defaultMessenger.getMessages(sender);
+	public MessageList getCurrentMessages() {
+		return new MessageList(defaultMessenger.getMessages(senderGhost));
 	}
 	
 	/** Zwraca tablicę z wiadomościami wysłanymi i odebranymi przez danego duszka
 	 *  w czasie życia obiektu w bieżącym poziomie. */
-	public ArrayList<Message> getMessagesHistory() {
+	public MessageList getMessagesHistory() {
 		return messagesHistory;
 	}
 	
