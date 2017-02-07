@@ -1,5 +1,6 @@
 package examples.commGhosts;
 
+import entrants.BoardData;
 import pacman.controllers.IndividualGhostController;
 import pacman.controllers.MASController;
 import pacman.game.Constants;
@@ -24,11 +25,48 @@ public class POCommGhosts extends MASController {
     public POCommGhosts(int TICK_THRESHOLD) {
         super(true, new EnumMap<Constants.GHOST, IndividualGhostController>(Constants.GHOST.class));
         controllers.put(Constants.GHOST.BLINKY, new POCommGhost(Constants.GHOST.BLINKY, TICK_THRESHOLD));
-        controllers.put(Constants.GHOST.INKY, new POCommGhost(Constants.GHOST.INKY, TICK_THRESHOLD));
-        controllers.put(Constants.GHOST.PINKY, new POCommGhost(Constants.GHOST.PINKY, TICK_THRESHOLD));
+        controllers.put(Constants.GHOST.INKY, new GuardingGhost(Constants.GHOST.INKY));
+        controllers.put(Constants.GHOST.PINKY, new GuardingGhost(Constants.GHOST.PINKY));
         controllers.put(Constants.GHOST.SUE, new POCommGhost(Constants.GHOST.SUE, TICK_THRESHOLD));
     }
 
+}
+
+/** Duszek chodzi po najmniejszym cyklu dookoła zadanego pola
+ *  Jest też odporny na losowe zmiany kierunku */
+class GuardingGhost extends IndividualGhostController {
+    BoardData boardData;
+    boolean initialMoveMade;
+
+    public GuardingGhost(Constants.GHOST ghost) {
+        super(ghost);
+        boardData = new BoardData();
+        initialMoveMade = false;
+    }
+
+    @Override
+    public Constants.MOVE getMove(Game game, long timeDue) {
+        boardData.update(game);
+        if (game.wasGhostEaten(ghost) || game.wasPacManEaten()){
+            initialMoveMade = false;
+        }
+
+        Boolean requiresAction = game.doesGhostRequireAction(ghost);
+        if (requiresAction != null && requiresAction)
+        {
+            int[] powerPills = game.getPowerPillIndices();
+            System.out.println(String.format("Go to superpill %d", powerPills[0]));
+
+            int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
+            Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
+
+            Constants.MOVE move = boardData.nextMoveTowardsTarget(myPosition, powerPills[0], lastMove);
+
+            initialMoveMade = true;
+            return move;
+        }
+        return Constants.MOVE.NEUTRAL;
+    }
 }
 
 class POCommGhost extends IndividualGhostController {

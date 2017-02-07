@@ -69,7 +69,7 @@ public class POPacMan extends PacmanController {
                 if (pillStillAvailable == null) continue;
             } catch(Exception e)
             {
-                System.out.println("Exception: " + e);
+                System.out.println("Exception: (Pill) " + e);
                 continue;
             }
             if (game.isPillStillAvailable(i)) {
@@ -85,7 +85,7 @@ public class POPacMan extends PacmanController {
                     targets.add(powerPills[i]);
                 }
             } catch (Exception e) {
-                System.out.println("Exception: " + e);
+                System.out.println("Exception: (Powerpill) " + e);
                 continue;
             }
         }
