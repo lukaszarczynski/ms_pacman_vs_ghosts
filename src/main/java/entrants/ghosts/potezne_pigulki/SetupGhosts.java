@@ -9,43 +9,81 @@ import java.util.EnumMap;
 import java.util.Arrays;
 import java.util.List;
 
+interface State {
+    Constants.MOVE Handle(GhostContext context, Game game, long timeDue);
+    Constants.MOVE getMove(Game game);
+}
 
-class GoLeftGhost extends IndividualGhostController {
+class GoLeftState implements State {
     // duszek idzie lewo jak tylko może
+    Constants.GHOST ghost;
 
-    public GoLeftGhost(Constants.GHOST ghost) {
-        super(ghost);
+    GoLeftState(Constants.GHOST ghost)
+    {
+        this.ghost = ghost;
     }
 
     @Override
-    public Constants.MOVE getMove(Game game, long timeDue) {
-        return Constants.MOVE.LEFT;
+    public Constants.MOVE getMove(Game game) {
+        Boolean requiresAction = game.doesGhostRequireAction(ghost);
+        if (requiresAction != null && requiresAction)        //if ghost requires an action
+        {
+            return Constants.MOVE.LEFT;
+        }
+        return Constants.MOVE.NEUTRAL;
+    }
+
+    @Override
+    public Constants.MOVE Handle(GhostContext context, Game game, long timeDue) {
+        if (game.wasGhostEaten(ghost) || game.getGhostEdibleTime(ghost) == 0){
+            context.state = new GoAroundState(ghost);
+            return null;
+        }
+
+        return getMove(game);
     }
 }
 
 
-class GoAroundGhost extends IndividualGhostController {
+class GoAroundState implements State {
     // duszek chodzi w koło trzymając się ściany po jego prawej
+    Constants.GHOST ghost;
+
+    GoAroundState(Constants.GHOST ghost)
+    {
+        this.ghost = ghost;
+    }
 
     private List<Constants.MOVE> moves = Arrays.asList(Constants.MOVE.LEFT, Constants.MOVE.DOWN, Constants.MOVE.RIGHT, Constants.MOVE.UP);
 
-    public GoAroundGhost(Constants.GHOST ghost) {
-        super(ghost);
+    @Override
+    public Constants.MOVE getMove(Game game) {
+        Boolean requiresAction = game.doesGhostRequireAction(ghost);
+        if (requiresAction != null && requiresAction)        //if ghost requires an action
+        {
+            Constants.MOVE last_move = game.getGhostLastMoveMade(ghost);
+            int last_move_idx = this.moves.indexOf(last_move);
+            List<Constants.MOVE> allowed_moves = Arrays.asList(game.getPossibleMoves(
+                    game.getGhostCurrentNodeIndex(ghost), last_move)
+            );
+            for (int i = 0; i < 4; ++i) {
+                Constants.MOVE move = this.moves.get((last_move_idx + 3 + i) % 4);
+                if (allowed_moves.contains(move))
+                    return move;
+            }
+            return null;
+        }
+        return Constants.MOVE.NEUTRAL;
     }
 
     @Override
-    public Constants.MOVE getMove(Game game, long timeDue) {
-        Constants.MOVE last_move = game.getGhostLastMoveMade(this.ghost);
-        int last_move_idx = this.moves.indexOf(last_move);
-        List<Constants.MOVE> allowed_moves = Arrays.asList(game.getPossibleMoves(
-            game.getGhostCurrentNodeIndex(ghost), last_move)
-        );
-        for (int i = 0; i < 4; ++i) {
-            Constants.MOVE move = this.moves.get((last_move_idx + 3 + i) % 4);
-            if (allowed_moves.contains(move))
-                return move;
+    public Constants.MOVE Handle(GhostContext context, Game game, long timeDue) {
+        if (game.wasPowerPillEaten()){
+            context.state = new GoLeftState(ghost);
+            return null;
         }
-        return null;
+
+        return getMove(game);
     }
 }
 
@@ -99,14 +137,33 @@ class LeftRightGhost extends IndividualGhostController {
 }
 
 
+class GhostContext extends IndividualGhostController {
+    public State state;
+
+    public GhostContext(Constants.GHOST ghost) {
+        super(ghost);
+        state = new GoAroundState(ghost);
+    }
+
+    @Override
+    public Constants.MOVE getMove(Game game, long timeDue) {
+        Constants.MOVE move = null;
+        while (move == null) {
+            move = state.Handle(this, game, timeDue);
+        }
+        return move;
+    }
+}
+
+
 public class SetupGhosts extends MASController {
 
     public SetupGhosts() {
         super(true, new EnumMap<Constants.GHOST, IndividualGhostController>(Constants.GHOST.class));
-        controllers.put(Constants.GHOST.BLINKY, new GoLeftGhost(Constants.GHOST.BLINKY));
-        controllers.put(Constants.GHOST.PINKY, new GoAroundGhost(Constants.GHOST.PINKY));
-        controllers.put(Constants.GHOST.INKY, new GoToPillGhost(Constants.GHOST.INKY));
-        controllers.put(Constants.GHOST.SUE, new LeftRightGhost(Constants.GHOST.SUE));
+        controllers.put(Constants.GHOST.BLINKY, new GhostContext(Constants.GHOST.BLINKY));
+        controllers.put(Constants.GHOST.PINKY, new GhostContext(Constants.GHOST.PINKY));
+        controllers.put(Constants.GHOST.INKY, new GhostContext(Constants.GHOST.INKY));
+        controllers.put(Constants.GHOST.SUE, new GhostContext(Constants.GHOST.SUE));
     }
 
 }
