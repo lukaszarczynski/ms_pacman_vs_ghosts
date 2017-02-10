@@ -9,7 +9,9 @@ import pacman.game.comms.BasicMessage;
 import pacman.game.comms.Message;
 import pacman.game.comms.Messenger;
 
+import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.LinkedList;
 import java.util.Random;
 
 
@@ -27,7 +29,7 @@ public class POCommGhosts extends MASController {
         controllers.put(Constants.GHOST.BLINKY, new POCommGhost(Constants.GHOST.BLINKY, TICK_THRESHOLD));
         controllers.put(Constants.GHOST.INKY, new GuardingGhost(Constants.GHOST.INKY));
         controllers.put(Constants.GHOST.PINKY, new GuardingGhost(Constants.GHOST.PINKY));
-        controllers.put(Constants.GHOST.SUE, new POCommGhost(Constants.GHOST.SUE, TICK_THRESHOLD));
+        controllers.put(Constants.GHOST.SUE, new GuardingGhost(Constants.GHOST.SUE));
     }
 
 }
@@ -37,6 +39,8 @@ public class POCommGhosts extends MASController {
 class GuardingGhost extends IndividualGhostController {
     BoardData boardData;
     boolean initialMoveMade;
+    int powerpillToRemove;
+    Boolean STATES_NOT_IMPLEMENTED = true;
 
     public GuardingGhost(Constants.GHOST ghost) {
         super(ghost);
@@ -47,20 +51,38 @@ class GuardingGhost extends IndividualGhostController {
     @Override
     public Constants.MOVE getMove(Game game, long timeDue) {
         boardData.update(game);
+
         if (game.wasGhostEaten(ghost) || game.wasPacManEaten()){
             initialMoveMade = false;
         }
 
+        powerpillToRemove = -1;
+        for (int powerpillIndex : boardData.getRemainingPowerPillsIndices()) {
+            if (game.isNodeObservable(powerpillIndex) &&
+                    !game.isPowerPillStillAvailable(game.getPowerPillIndex(powerpillIndex))) {
+                powerpillToRemove = powerpillIndex;
+                int a = 1;
+            }
+        }
+
+
+
         Boolean requiresAction = game.doesGhostRequireAction(ghost);
         if (requiresAction != null && requiresAction)
         {
-            int[] powerPills = game.getPowerPillIndices();
-            System.out.println(String.format("Go to superpill %d", powerPills[0]));
-
             int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
             Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
 
-            Constants.MOVE move = boardData.nextMoveTowardsTarget(myPosition, powerPills[0], lastMove);
+            int selectedPowerpill;
+            if (STATES_NOT_IMPLEMENTED && boardData.getRemainingPowerPillsIndices().size() == 0) {
+                selectedPowerpill = game.getPowerPillIndices()[0];
+            } else {
+                selectedPowerpill = boardData.getShortestCycleWithPowerpill(
+                        boardData.getRemainingPowerPillsIndices(), myPosition, lastMove, initialMoveMade);
+            }
+            System.out.println(String.format("Go to superpill %d", selectedPowerpill));
+
+            Constants.MOVE move = boardData.nextMoveTowardsTarget(myPosition, selectedPowerpill, lastMove);
 
             initialMoveMade = true;
             return move;

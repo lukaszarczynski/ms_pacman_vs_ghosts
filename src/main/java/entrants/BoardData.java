@@ -42,6 +42,10 @@ interface IBoardData {
 	public LinkedList<Integer> getRemainingPowerPillsIndices();
 
 	public Constants.MOVE nextMoveTowardsTarget(int initialPosition, int finalPosition, Constants.MOVE lastMove);
+	public LinkedList<Integer> getNeighbors(int x, int y);
+	public LinkedList<Integer> getNeighbors(int index);
+	public Integer getShortestCycleWithPowerpill(LinkedList<Integer> powerpillIndices, int position,
+                                                 Constants.MOVE lastMove, Boolean initialMoveMade);
 }
 
 
@@ -56,6 +60,7 @@ public class BoardData implements IBoardData {
 	private int height = 120;
 	private int width = 109;
 	private char[][] board = new char[height][width];
+	private Node[][] nodeBoard = new Node[height][width];
 	private char wallChar = '.';
 	private char pillChar = '*';
 	private char powerPillChar = '$';
@@ -129,12 +134,38 @@ public class BoardData implements IBoardData {
 		}
 	}
 
+	private void initNodeBoard() {
+	    for (int x = 0; x < width; ++x) {
+			for (int y = 0; y < height; ++y) {
+				setNodeBoardElement(x, y, null);
+			}
+		}
+
+	    maze = game.getCurrentMaze();
+    	nodes = maze.graph;
+		for (Node node : nodes) {
+		    setNodeBoardElement(node.x, node.y, node);
+        }
+    }
+
+    private void indexTest() {
+        for (Node node : nodes) {
+		    if (node.nodeIndex != index(indexX(node.nodeIndex), indexY(node.nodeIndex)) ||
+                    node.x != indexX(index(node.x, node.y)) ||
+                    node.y != indexY(index(node.x, node.y))) {
+		        throw new AssertionError();
+            }
+        }
+    }
+
 	/** Aktualizacja stanów. Metoda powinna być wywołana na początku
 	 *  każdego przebiegu funkcji getMove. */
 	public void update(Game game) {
 		this.game = game;
 		if (level < game.getCurrentLevel()) {
 			initBoard();
+			initNodeBoard();
+			indexTest();
 		}
 
 		updatePills();
@@ -338,6 +369,84 @@ public class BoardData implements IBoardData {
         return move;
     }
 
+    @Override
+    public LinkedList<Integer> getNeighbors(int x, int y) {
+
+        Node[] nodeNeighborhood = {
+                nodeBoard[y][x - 1],
+                nodeBoard[y][x + 1],
+                nodeBoard[y - 1][x],
+                nodeBoard[y + 1][x]
+        };
+        LinkedList<Integer> neighborsIndices = new LinkedList<>();
+        for (Node node : nodeNeighborhood) {
+            if (node != null) {
+                neighborsIndices.add(node.nodeIndex);
+            }
+        }
+        return neighborsIndices;
+    }
+
+    @Override
+    public LinkedList<Integer> getNeighbors(int index) {
+	    return getNeighbors(indexX(index), indexY(index));
+    }
+
+    @Override
+    public Integer getShortestCycleWithPowerpill(LinkedList<Integer> powerpillIndices, int position,
+                                                 Constants.MOVE lastMove, Boolean initialMoveMade) {
+	    if (powerpillIndices.size() == 0) {
+	        return -1;
+        }
+        int selectedPowerpill = powerpillIndices.getFirst();
+	    int currentCycleLength = cycleLength(selectedPowerpill);
+	    int currentDistance;
+	    if (initialMoveMade) {
+	        currentDistance = game.getShortestPath(position, selectedPowerpill, lastMove).length;
+        } else {
+            currentDistance = game.getShortestPath(position, selectedPowerpill).length;
+        }
+
+        for (int powerPillIndex : powerpillIndices) {
+            int newCycleLength = cycleLength(powerPillIndex);
+            int newDistance;
+            if (initialMoveMade) {
+	            newDistance = game.getShortestPath(position, powerPillIndex, lastMove).length;
+            } else {
+                newDistance = game.getShortestPath(position, powerPillIndex).length;
+            }
+
+            if (newCycleLength < currentCycleLength ||
+                    ((newCycleLength == currentCycleLength) && newDistance < currentDistance)) {
+                selectedPowerpill = powerPillIndex;
+                currentCycleLength = newCycleLength;
+                currentDistance = newDistance;
+            }
+        }
+        return selectedPowerpill;
+    }
+
+    /** Długość najkrótszego cyklu przechodzącego przez dane pole. */
+    private int cycleLength(int index) {
+        LinkedList<Integer> neighbors = getNeighbors(index);
+        if (neighbors.size() == 0) {
+            return -1;
+        }
+        int neighbor = neighbors.getFirst();
+        boolean horizontalNeighbor = (indexY(index) == indexY(neighbor));
+        Constants.MOVE move;
+        if (horizontalNeighbor) {
+            move = Constants.MOVE.RIGHT;
+        } else {
+            move = Constants.MOVE.UP;
+        }
+
+        int[] pathTo = game.getShortestPath(index, neighbor, move);
+        int[] pathFrom = game.getShortestPath(neighbor, index, move);
+
+        return pathFrom.length + pathTo.length;
+    }
+
     private boolean compareIndexCoords(int index, int x, int y) {
 		return indexX(index) == x && indexY(index) == y;
 	}
@@ -370,6 +479,22 @@ public class BoardData implements IBoardData {
 		return getBoardElement(indexX(index), indexY(index));
 	}
 
+	private void setNodeBoardElement(int x, int y, Node value) {
+		nodeBoard[y][x] = value;
+	}
+
+	private void setNodeBoardElement(int index, Node value) {
+		setNodeBoardElement(indexX(index), indexY(index), value);
+	}
+
+	private char getNodeBoardElement(int x, int y) {
+		return board[y][x];
+	}
+
+	private char getNodeBoardElement(int index) {
+		return getNodeBoardElement(indexX(index), indexY(index));
+	}
+
 	private int indexX(int index) {
 		return nodes[index].x;
 	}
@@ -377,6 +502,10 @@ public class BoardData implements IBoardData {
 	private int indexY(int index) {
 		return nodes[index].y;
 	}
+
+	private int index(int x, int y) {
+	    return nodeBoard[y][x].nodeIndex;
+    }
 
 
 	public SmartMessenger getSmartMessenger() {

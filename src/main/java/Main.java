@@ -13,6 +13,6 @@ public class Main {
 
         Executor executor = new Executor(true, true);
 
-        executor.runGameTimed(new POPacMan(), new POCommGhosts(50), true);
+        executor.runGame(new POPacMan(), new POCommGhosts(50), true, 40);
     }
 }
