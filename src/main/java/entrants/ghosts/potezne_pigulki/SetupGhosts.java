@@ -7,23 +7,27 @@ import pacman.game.Game;
 
 import java.util.EnumMap;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 interface State {
     Constants.MOVE Handle(GhostContext context, Game game, long timeDue);
     Constants.MOVE getMove(Game game);
     State transitionFunction(Game game);
+    State transitionFunction(Game game, Constants.GHOST anotherGhost);
 }
 
 class GoLeftState implements State {
     // duszek idzie lewo jak tylko może
-    Constants.GHOST ghost;
-    Integer startTime;
-    Integer maxDuration;
+    private Constants.GHOST ghost;
+    private Integer startTime;
+    private Integer maxDuration;
 
-    GoLeftState(Constants.GHOST ghost)
+    GoLeftState(Constants.GHOST ghost, Game game)
     {
         this.ghost = ghost;
+        startTime = game.getCurrentLevelTime();
+        maxDuration = game.getGhostEdibleTime(ghost);
     }
 
     @Override
@@ -38,19 +42,19 @@ class GoLeftState implements State {
 
     @Override
     public State transitionFunction(Game game) {
-        if (game.wasGhostEaten(ghost) || (startTime + maxDuration) < game.getCurrentLevelTime()){
-            return new GoAroundState(ghost);
+        return transitionFunction(game, ghost);
+    }
+
+    @Override
+    public State transitionFunction(Game game, Constants.GHOST anotherGhost) {
+        if (game.wasGhostEaten(anotherGhost) || (startTime + maxDuration) < game.getCurrentLevelTime()){
+            return new GoAroundState(ghost, game);
         }
         return this;
     }
 
     @Override
     public Constants.MOVE Handle(GhostContext context, Game game, long timeDue) {
-        if (startTime == null) {
-            startTime = game.getCurrentLevelTime();
-            maxDuration = game.getGhostEdibleTime(ghost);
-        }
-
         State stateAfterTransition = transitionFunction(game);
         if (stateAfterTransition != this) {
             context.state = stateAfterTransition;
@@ -64,9 +68,9 @@ class GoLeftState implements State {
 
 class GoAroundState implements State {
     // duszek chodzi w koło trzymając się ściany po jego prawej
-    Constants.GHOST ghost;
+    private Constants.GHOST ghost;
 
-    GoAroundState(Constants.GHOST ghost)
+    GoAroundState(Constants.GHOST ghost, Game game)
     {
         this.ghost = ghost;
     }
@@ -95,8 +99,13 @@ class GoAroundState implements State {
 
     @Override
     public State transitionFunction(Game game) {
+        return transitionFunction(game, ghost);
+    }
+
+    @Override
+    public State transitionFunction(Game game, Constants.GHOST anotherGhost) {
         if (game.wasPowerPillEaten()){
-            return new GoLeftState(ghost);
+            return new GoLeftState(ghost, game);
         }
         return this;
     }
@@ -164,19 +173,33 @@ class LeftRightGhost extends IndividualGhostController {
 
 
 class GhostContext extends IndividualGhostController {
-    public State state;
+    State state;
+    private HashMap<Constants.GHOST, State> ghostStates;
 
-    public GhostContext(Constants.GHOST ghost) {
+    GhostContext(Constants.GHOST ghost) {
         super(ghost);
-        state = new GoAroundState(ghost);
+        ghostStates = new HashMap<>();
     }
 
     @Override
     public Constants.MOVE getMove(Game game, long timeDue) {
+        if (state == null) {
+            state = new GoAroundState(ghost, game);
+            for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
+                ghostStates.put(anotherGhost, new GoAroundState(ghost, game));
+            }
+        }
+
         Constants.MOVE move = null;
         while (move == null) {
             move = state.Handle(this, game, timeDue);
         }
+
+        for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
+            State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(game, anotherGhost);
+            ghostStates.put(anotherGhost, stateAfterTransition);
+        }
+
         return move;
     }
 }
