@@ -12,11 +12,14 @@ import java.util.List;
 interface State {
     Constants.MOVE Handle(GhostContext context, Game game, long timeDue);
     Constants.MOVE getMove(Game game);
+    State transitionFunction(Game game);
 }
 
 class GoLeftState implements State {
     // duszek idzie lewo jak tylko może
     Constants.GHOST ghost;
+    Integer startTime;
+    Integer maxDuration;
 
     GoLeftState(Constants.GHOST ghost)
     {
@@ -34,9 +37,23 @@ class GoLeftState implements State {
     }
 
     @Override
+    public State transitionFunction(Game game) {
+        if (game.wasGhostEaten(ghost) || (startTime + maxDuration) < game.getCurrentLevelTime()){
+            return new GoAroundState(ghost);
+        }
+        return this;
+    }
+
+    @Override
     public Constants.MOVE Handle(GhostContext context, Game game, long timeDue) {
-        if (game.wasGhostEaten(ghost) || game.getGhostEdibleTime(ghost) == 0){
-            context.state = new GoAroundState(ghost);
+        if (startTime == null) {
+            startTime = game.getCurrentLevelTime();
+            maxDuration = game.getGhostEdibleTime(ghost);
+        }
+
+        State stateAfterTransition = transitionFunction(game);
+        if (stateAfterTransition != this) {
+            context.state = stateAfterTransition;
             return null;
         }
 
@@ -77,9 +94,18 @@ class GoAroundState implements State {
     }
 
     @Override
-    public Constants.MOVE Handle(GhostContext context, Game game, long timeDue) {
+    public State transitionFunction(Game game) {
         if (game.wasPowerPillEaten()){
-            context.state = new GoLeftState(ghost);
+            return new GoLeftState(ghost);
+        }
+        return this;
+    }
+
+    @Override
+    public Constants.MOVE Handle(GhostContext context, Game game, long timeDue) {
+        State stateAfterTransition = transitionFunction(game);
+        if (stateAfterTransition != this) {
+            context.state = stateAfterTransition;
             return null;
         }
 
