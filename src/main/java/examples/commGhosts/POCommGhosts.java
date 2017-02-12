@@ -27,69 +27,13 @@ public class POCommGhosts extends MASController {
     public POCommGhosts(int TICK_THRESHOLD) {
         super(true, new EnumMap<Constants.GHOST, IndividualGhostController>(Constants.GHOST.class));
         controllers.put(Constants.GHOST.BLINKY, new POCommGhost(Constants.GHOST.BLINKY, TICK_THRESHOLD));
-        controllers.put(Constants.GHOST.INKY, new GuardingGhost(Constants.GHOST.INKY));
-        controllers.put(Constants.GHOST.PINKY, new GuardingGhost(Constants.GHOST.PINKY));
-        controllers.put(Constants.GHOST.SUE, new GuardingGhost(Constants.GHOST.SUE));
+        controllers.put(Constants.GHOST.INKY, new POCommGhost(Constants.GHOST.INKY, TICK_THRESHOLD));
+        controllers.put(Constants.GHOST.PINKY, new POCommGhost(Constants.GHOST.PINKY, TICK_THRESHOLD));
+        controllers.put(Constants.GHOST.SUE, new POCommGhost(Constants.GHOST.SUE, TICK_THRESHOLD));
     }
 
 }
 
-/** Duszek chodzi po najmniejszym cyklu dookoła zadanego pola
- *  Jest też odporny na losowe zmiany kierunku */
-class GuardingGhost extends IndividualGhostController {
-    BoardData boardData;
-    boolean initialMoveMade;
-    int powerpillToRemove;
-    Boolean STATES_NOT_IMPLEMENTED = true;
-
-    public GuardingGhost(Constants.GHOST ghost) {
-        super(ghost);
-        boardData = new BoardData();
-        initialMoveMade = false;
-    }
-
-    @Override
-    public Constants.MOVE getMove(Game game, long timeDue) {
-        boardData.update(game);
-
-        if (game.wasGhostEaten(ghost) || game.wasPacManEaten()){
-            initialMoveMade = false;
-        }
-
-        powerpillToRemove = -1;
-        for (int powerpillIndex : boardData.getRemainingPowerPillsIndices()) {
-            if (game.isNodeObservable(powerpillIndex) &&
-                    !game.isPowerPillStillAvailable(game.getPowerPillIndex(powerpillIndex))) {
-                powerpillToRemove = powerpillIndex;
-                int a = 1;
-            }
-        }
-
-
-
-        Boolean requiresAction = game.doesGhostRequireAction(ghost);
-        if (requiresAction != null && requiresAction)
-        {
-            int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
-            Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
-
-            int selectedPowerpill;
-            if (STATES_NOT_IMPLEMENTED && boardData.getRemainingPowerPillsIndices().size() == 0) {
-                selectedPowerpill = game.getPowerPillIndices()[0];
-            } else {
-                selectedPowerpill = boardData.getShortestCycleWithPowerpill(
-                        boardData.getRemainingPowerPillsIndices(), myPosition, lastMove, initialMoveMade);
-            }
-            System.out.println(String.format("Go to superpill %d", selectedPowerpill));
-
-            Constants.MOVE move = boardData.nextMoveTowardsTarget(myPosition, selectedPowerpill, lastMove);
-
-            initialMoveMade = true;
-            return move;
-        }
-        return Constants.MOVE.NEUTRAL;
-    }
-}
 
 class POCommGhost extends IndividualGhostController {
     private final static float CONSISTENCY = 0.9f;    //attack Ms Pac-Man with this probability
