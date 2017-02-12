@@ -1,5 +1,6 @@
 // import examples.commGhosts.POCommGhosts;
 import entrants.ghosts.potezne_pigulki.StateGhosts;
+import entrants.pacman.potezne_pigulki.NotQuiteIntelligentPacMan;
 import pacman.Executor;
 import examples.poPacMan.POPacMan;
 import examples.demo.DemoPacMan;
@@ -14,6 +15,6 @@ public class Main {
 
         Executor executor = new Executor(true, true);
 
-        executor.runGame(new POPacMan(), new StateGhosts(), true, 40);
+        executor.runGame(new NotQuiteIntelligentPacMan(), new StateGhosts(), true, 40);
     }
 }

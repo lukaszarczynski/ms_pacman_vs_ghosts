@@ -38,6 +38,7 @@ interface IBoardData {
 	public void setGhostIndex(GHOST ghost, int index);
 	public void setGhostIndex(GHOST ghost, int index, int time);
 	public DataTime getGhostIndex(GHOST ghost);
+	public Integer getLairIndex();
 	public LinkedList<Integer> getRemainingPillIndices();
 	public LinkedList<Integer> getRemainingPowerPillsIndices();
 
@@ -74,7 +75,8 @@ public class BoardData implements IBoardData {
 	private LinkedList<Integer> pillIndices;
 	private LinkedList<Integer> powerPillIndices;
 	private int level = -1;
-	private final int pacmanInitIndex = 978;
+	private int pacmanInitIndex;
+	private int lairIndex;
 
 	private DataTime pacmanIndex;
 	private EnumMap<GHOST, DataTime> ghostIndices = new EnumMap<>(GHOST.class);
@@ -82,8 +84,6 @@ public class BoardData implements IBoardData {
 	private final GHOST clientGhost;
 	private boolean messaging = false;
 	private SmartMessenger smartMessanger;
-
-	private static final int LAIR_INDEX = 1292;
 
 
 	/** Konstruktor dla pacmana. */
@@ -261,6 +261,8 @@ public class BoardData implements IBoardData {
 		for (GHOST ghost : GHOST.values()) {
 			setGhostIndex(ghost, game.getGhostInitialNodeIndex());
 		}
+        lairIndex = game.getCurrentMaze().lairNodeIndex;
+		pacmanInitIndex = game.getCurrentMaze().initialPacManNodeIndex;
 	}
 
 
@@ -346,7 +348,12 @@ public class BoardData implements IBoardData {
 		return ghostIndices.getOrDefault(ghost, null);
 	}
 
-	public LinkedList<Integer> getRemainingPillIndices() {
+    @Override
+    public Integer getLairIndex() {
+        return lairIndex;
+    }
+
+    public LinkedList<Integer> getRemainingPillIndices() {
 		return pillIndices;
 	}
 
@@ -435,7 +442,7 @@ public class BoardData implements IBoardData {
         for (int powerPillIndex : powerpillIndices) {
             for (DataTime dataTime : ghostIndices.values()) {
                 int position = dataTime.value;
-                if (position != LAIR_INDEX) {
+                if (position != lairIndex) {
                     int newCycleLength = cycleLength(powerPillIndex);
                     int newDistance;
                     newDistance = game.getShortestPath(position, powerPillIndex).length;
@@ -464,7 +471,7 @@ public class BoardData implements IBoardData {
 		currentDistance = Integer.MAX_VALUE;
 
         for (int powerPillIndex : powerpillIndices) {
-            if (position != LAIR_INDEX) {
+            if (position != lairIndex) {
                 int newCycleLength = cycleLength(powerPillIndex);
                 int newDistance;
                 newDistance = game.getShortestPath(position, powerPillIndex).length;
