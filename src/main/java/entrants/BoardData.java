@@ -37,8 +37,10 @@ interface IBoardData {
 	public DataTime getPacmanIndex();
 	public void setGhostIndex(GHOST ghost, int index);
 	public void setGhostIndex(GHOST ghost, int index, int time);
+	public void removePowerpill(GHOST ghost);
 	public DataTime getGhostIndex(GHOST ghost);
 	public Integer getLairIndex();
+	public Integer getExactNumberOfPowerpills();
 	public LinkedList<Integer> getRemainingPillIndices();
 	public LinkedList<Integer> getRemainingPowerPillsIndices();
 
@@ -59,7 +61,8 @@ interface IBoardData {
  *  w kontrolerze należy wywołać metodę update(Game game) obiektu klasy BoardData.
  *  Można sobie wyprintować obiekt BoardData (planszę i inne dane) dzięki toString(). */
 public class BoardData implements IBoardData {
-	private int height = 120;
+    public static final int INITIAL_POSITION = -1;
+    private int height = 120;
 	private int width = 109;
 	private char[][] board = new char[height][width];
 	private Node[][] nodeBoard = new Node[height][width];
@@ -80,10 +83,13 @@ public class BoardData implements IBoardData {
 
 	private DataTime pacmanIndex;
 	private EnumMap<GHOST, DataTime> ghostIndices = new EnumMap<>(GHOST.class);
+	private EnumMap<GHOST, Constants.MOVE> ghostDirections = new EnumMap<GHOST, Constants.MOVE>(GHOST.class);
 
 	private final GHOST clientGhost;
 	private boolean messaging = false;
 	private SmartMessenger smartMessanger;
+
+	private int exactNumberOfPowerpills;
 
 
 	/** Konstruktor dla pacmana. */
@@ -123,6 +129,7 @@ public class BoardData implements IBoardData {
 		}
 
 		// dostawiamy potężne tabletki
+        exactNumberOfPowerpills = 4;
 		powerPillIndices = new LinkedList<Integer>();
 		for (int powerPillIndex : maze.powerPillIndices) {
 			powerPillIndices.add(powerPillIndex);
@@ -198,14 +205,21 @@ public class BoardData implements IBoardData {
 	}
 
 	private void updatePowerPills() {
+	    if (game.wasPowerPillEaten()) {
+	        exactNumberOfPowerpills--;
+        }
 		Iterator<Integer> it = powerPillIndices.iterator();
 		while (it.hasNext()) {
 			int powerPillIndex = it.next();
-			if (isPowerPill(powerPillIndex) &&
-						game.isNodeObservable(powerPillIndex) &&
-						!game.isPowerPillStillAvailable(game.getPowerPillIndex(powerPillIndex))) {
+			if ((exactNumberOfPowerpills == 0) ||
+                    (isPowerPill(powerPillIndex) &&
+                            game.isNodeObservable(powerPillIndex) &&
+                            !game.isPowerPillStillAvailable(game.getPowerPillIndex(powerPillIndex)))) {
 				clearElement(powerPillIndex);
 				it.remove();
+				if (smartMessanger != null) {
+                    smartMessanger.broadcastMessageIAmHeading(INITIAL_POSITION);
+                }
 			}
 		}
 	}
@@ -226,6 +240,7 @@ public class BoardData implements IBoardData {
 		for (GHOST ghost : GHOST.values()) {
 			int ghostCurrentIndex = game.getGhostCurrentNodeIndex(ghost);
 			if (ghostCurrentIndex >= 0) {
+			    updateGhostDirection(ghost, ghostCurrentIndex);
 				setGhostIndex(ghost, ghostCurrentIndex);
 				if (messaging && ghost == clientGhost) {
 					smartMessanger.broadcastMessageIAm(ghostCurrentIndex);
@@ -236,7 +251,29 @@ public class BoardData implements IBoardData {
 		}
 	}
 
-	private void getAndProcessMessages() {
+    private void updateGhostDirection(GHOST ghost, int ghostCurrentIndex) {
+	    int previousIndex = getGhostIndex(ghost).value;
+        if (ghostDirections.get(ghost) == null ||
+                game.getManhattanDistance(previousIndex, ghostCurrentIndex) > 1) {
+	        setGhostDirection(ghost, Constants.MOVE.NEUTRAL);
+        }
+        if (game.getManhattanDistance(previousIndex, ghostCurrentIndex) == 1) {
+            if (indexX(ghostCurrentIndex) == indexX(previousIndex) + 1) {
+                setGhostDirection(ghost, Constants.MOVE.RIGHT);
+            }
+            if (indexX(ghostCurrentIndex) == indexX(previousIndex) - 1) {
+                setGhostDirection(ghost, Constants.MOVE.LEFT);
+            }
+            if (indexY(ghostCurrentIndex) == indexY(previousIndex) + 1) {
+                setGhostDirection(ghost, Constants.MOVE.DOWN);
+            }
+            if (indexY(ghostCurrentIndex) == indexY(previousIndex) - 1) {
+                setGhostDirection(ghost, Constants.MOVE.UP);
+            }
+        }
+    }
+
+    private void getAndProcessMessages() {
         for (Message message : smartMessanger.getCurrentMessages()) {
             if (message.getType() == MessageType.PACMAN_SEEN) {
 //            	System.out.format("%d. %s odbiera od %s info o pacmanie podczas %d, posiadając dane z %d\n",
@@ -250,9 +287,10 @@ public class BoardData implements IBoardData {
 //            	System.out.format("%d. %s odbiera od %s obecność podczas %d, posiadając dane z %d\n",
 //                		game.getCurrentLevelTime(), clientGhost, message.getSender(), message.getTick(), getGhostIndex(message.getSender()).time);
                 if (message.getTick() > getGhostIndex(message.getSender()).time) {
-                	setGhostIndex(message.getSender(), message.getData(), message.getTick());
+                    updateGhostDirection(message.getSender(), message.getData());
+                    setGhostIndex(message.getSender(), message.getData(), message.getTick());
                 }
-                			}
+            }
         }
 	}
 
@@ -263,9 +301,27 @@ public class BoardData implements IBoardData {
 		}
         lairIndex = game.getCurrentMaze().lairNodeIndex;
 		pacmanInitIndex = game.getCurrentMaze().initialPacManNodeIndex;
+		setPacmanIndex(pacmanInitIndex);
+		for (GHOST ghost : GHOST.values()) {
+		    setGhostIndex(ghost, lairIndex);
+        }
 	}
 
+    private boolean isNodeObservable(int nodeIndex, int observerIndex) {
+        if (nodeIndex == -1 || observerIndex == -1 ||
+                nodeIndex == lairIndex || observerIndex == lairIndex) {
+            return false;
+        }
+        Node currentNode = nodes[observerIndex];
+        Node check = nodes[nodeIndex];
 
+        if (currentNode.x == check.x || currentNode.y == check.y) {
+            double manhattan = game.getManhattanDistance(currentNode.nodeIndex, check.nodeIndex);
+            double shortestPath = game.getShortestPathDistance(currentNode.nodeIndex, check.nodeIndex);
+            return (manhattan == shortestPath);
+        }
+        return false;
+    }
 
 	public boolean isWall(int x, int y) {
 		return compareBoardElement(x, y, wallChar);
@@ -344,13 +400,35 @@ public class BoardData implements IBoardData {
 		ghostIndices.put(ghost, new DataTime(index, time));
 	}
 
-	public DataTime getGhostIndex(GHOST ghost) {
+	private void setGhostDirection(GHOST ghost, Constants.MOVE direction) {
+	    ghostDirections.put(ghost, direction);
+    }
+
+    @Override
+    public void removePowerpill(GHOST observingGhost) {
+		Iterator<Integer> it = powerPillIndices.iterator();
+		while (it.hasNext()) {
+			int powerPillIndex = it.next();
+			if (isPowerPill(powerPillIndex) &&
+                    isNodeObservable(powerPillIndex, ghostIndices.get(observingGhost).value)) {
+				clearElement(powerPillIndex);
+				it.remove();
+			}
+		}
+    }
+
+    public DataTime getGhostIndex(GHOST ghost) {
 		return ghostIndices.getOrDefault(ghost, null);
 	}
 
     @Override
     public Integer getLairIndex() {
         return lairIndex;
+    }
+
+    @Override
+    public Integer getExactNumberOfPowerpills() {
+        return exactNumberOfPowerpills;
     }
 
     public LinkedList<Integer> getRemainingPillIndices() {

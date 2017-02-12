@@ -197,7 +197,7 @@ class CatchingState extends State {
             }
             int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
             Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
-            if (boardData.getRemainingPowerPillsIndices().size() > 0 && nonePillGuardedTime > NONE_PILL_GUARDED_MAX_TIME &&
+            if (boardData.getExactNumberOfPowerpills() > 0 && nonePillGuardedTime > NONE_PILL_GUARDED_MAX_TIME &&
                     game.getCurrentLevelTime() > MIN_LEVEL_TIME) {
                 int selectedPowerpill = boardData.getPowerpillWithShortestCycle(myPosition, lastMove);
                 if (Objects.equals(boardData.getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(myPosition),
@@ -248,7 +248,6 @@ class GuardingState extends State {
     private Integer myPosition;
     private Constants.MOVE lastMove;
 
-
     GuardingState(Constants.GHOST ghost, Game game, int selectedPowerpill) {
         this.ghost = ghost;
         this.selectedPowerpill = selectedPowerpill;
@@ -280,9 +279,11 @@ class GuardingState extends State {
             return new RetreatState(ghost, game);
         }
 
-        if (boardData.getRemainingPowerPillsIndices().size() == 0 || game.wasPacManEaten() ||
-                !Objects.equals(selectedPowerpill, boardData.getPowerpillWithShortestCycle(myPosition, lastMove))) {
-            boardData.getSmartMessenger().broadcastMessageIAmHeading(INITIAL_POSITION);
+        if (game.wasPacManEaten()) {
+            return new CatchingState(ghost);
+        }
+        if (boardData.getExactNumberOfPowerpills() == 0 || boardData.isEmpty(selectedPowerpill)) {
+            boardData.getSmartMessenger().broadcastMessageIAmHeading(BoardData.INITIAL_POSITION);
             return new CatchingState(ghost);
         }
 
@@ -296,10 +297,14 @@ class GuardingState extends State {
             return new RetreatState(ghost, game);
         }
 
-        MessageList headingMessage = boardData.getSmartMessenger().getCurrentMessages().
+        MessageList headingMessages = boardData.getSmartMessenger().getCurrentMessages().
                 selectType(Message.MessageType.I_AM_HEADING).selectSender(anotherGhost);
-        if (headingMessage.size() == 1 && headingMessage.get(0).getData() == INITIAL_POSITION) {
-            return new CatchingState(ghost);
+        if (headingMessages.size() >= 1) {
+            for (Message message : headingMessages) {
+                if (message.getData() == BoardData.INITIAL_POSITION) {
+                    return new CatchingState(ghost);
+                }
+            }
         }
 
         return this;
@@ -333,6 +338,16 @@ class GhostContext extends IndividualGhostController {
         }
 
         boardData.update(game);
+
+        MessageList headingMessages = boardData.getSmartMessenger().getCurrentMessages().
+                selectType(Message.MessageType.I_AM_HEADING);
+        if (headingMessages.size() >= 1) {
+            for (Message message : headingMessages) {
+                 if (message.getData() == BoardData.INITIAL_POSITION) {
+                     boardData.removePowerpill(headingMessages.get(0).getSender());
+                 }
+            }
+        }
 
         for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
             if (anotherGhost == ghost) {
