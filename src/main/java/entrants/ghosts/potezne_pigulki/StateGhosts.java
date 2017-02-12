@@ -12,10 +12,13 @@ import pacman.game.comms.Message;
 import java.util.*;
 
 interface State {
-    Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData, long timeDue);
+    String toString();
+    Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData,
+                          HashMap<Constants.GHOST, State> ghostStates, long timeDue);
     Constants.MOVE getMove(Game game, BoardData boardData);
-    State transitionFunction(Game game);
-    State transitionFunction(Game game, Constants.GHOST anotherGhost);
+    State transitionFunction(Game game, BoardData boardData, HashMap<Constants.GHOST, State> ghostStates);
+    State transitionFunction(Game game, BoardData boardData,
+                             HashMap<Constants.GHOST, State> ghostStates, Constants.GHOST anotherGhost);
 }
 
 class RetreatState implements State {
@@ -69,7 +72,8 @@ class RetreatState implements State {
                     System.out.println(e);
                 }
             } else {
-                Constants.MOVE[] possibleMoves = game.getPossibleMoves(game.getGhostCurrentNodeIndex(ghost), game.getGhostLastMoveMade(ghost));
+                Constants.MOVE[] possibleMoves = game.getPossibleMoves(
+                        game.getGhostCurrentNodeIndex(ghost), game.getGhostLastMoveMade(ghost));
                 return possibleMoves[rand.nextInt(possibleMoves.length)];
             }
         }
@@ -77,12 +81,13 @@ class RetreatState implements State {
     }
 
     @Override
-    public State transitionFunction(Game game) {
-        return transitionFunction(game, ghost);
+    public State transitionFunction(Game game, BoardData boardData, HashMap<Constants.GHOST, State> ghostStates) {
+        return transitionFunction(game, boardData, ghostStates, ghost);
     }
 
     @Override
-    public State transitionFunction(Game game, Constants.GHOST anotherGhost) {
+    public State transitionFunction(Game game, BoardData boardData,
+                                    HashMap<Constants.GHOST, State> ghostStates, Constants.GHOST anotherGhost) {
         if (game.wasGhostEaten(anotherGhost) || (startTime + maxDuration) < game.getCurrentLevelTime()){
             return new CatchingState(ghost);
         }
@@ -90,8 +95,9 @@ class RetreatState implements State {
     }
 
     @Override
-    public Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData, long timeDue) {
-        State stateAfterTransition = transitionFunction(game);
+    public Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData,
+                                 HashMap<Constants.GHOST, State> ghostStates, long timeDue) {
+        State stateAfterTransition = transitionFunction(game, boardData, ghostStates);
         if (stateAfterTransition != this) {
             context.state = stateAfterTransition;
             return null;
@@ -99,16 +105,25 @@ class RetreatState implements State {
 
         return getMove(game, boardData);
     }
+
+    @Override
+    public String toString() {
+        return "RetreatState";
+    }
 }
 
 class CatchingState implements State {
     private static final int TICK_THRESHOLD = 50;
     private static final float CONSISTENCY = 0.9f;
+    private static final int NONE_PILL_GUARDED_MAX_TIME = 5;
+    private static final int MIN_LEVEL_TIME = 70;
+    private static final int LAIR_INDEX = 1292;
 
     private Constants.GHOST ghost;
     private Random rand = new Random();
     private int lastPacmanIndex = -1;
     private int tickSeen = -1;
+    private int nonePillGuardedTime = 0;
 
     CatchingState(Constants.GHOST ghost)
     {
@@ -162,21 +177,64 @@ class CatchingState implements State {
     }
 
     @Override
-    public State transitionFunction(Game game) {
-        return transitionFunction(game, ghost);
-    }
-
-    @Override
-    public State transitionFunction(Game game, Constants.GHOST anotherGhost) {
+    public State transitionFunction(Game game, BoardData boardData, HashMap<Constants.GHOST, State> ghostStates) {
         if (game.wasPowerPillEaten()){
             return new RetreatState(ghost, game);
         }
+
+        if (game.getGhostCurrentNodeIndex(ghost) != LAIR_INDEX) {
+            boolean pillGuarded = false;
+            for (State state : ghostStates.values()) {
+                if (state instanceof GuardingState) {
+                    pillGuarded = true;
+                }
+            }
+            if (!pillGuarded && game.getCurrentLevelTime() > MIN_LEVEL_TIME) {
+                nonePillGuardedTime++;
+            } else {
+                nonePillGuardedTime = 0;
+            }
+            int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
+            Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
+            if (boardData.getRemainingPowerPillsIndices().size() > 0 && nonePillGuardedTime > NONE_PILL_GUARDED_MAX_TIME &&
+                    game.getCurrentLevelTime() > MIN_LEVEL_TIME) {
+                int selectedPowerpill = boardData.getPowerpillWithShortestCycle(myPosition, lastMove);
+                if (Objects.equals(boardData.getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(myPosition),
+                        boardData.getDistanceToPowerpillWithShortestCycleNearestToSomeGhost())) {
+                    boardData.getSmartMessenger().broadcastMessageIAmHeading(selectedPowerpill);
+                    return new GuardingState(ghost, game, selectedPowerpill);
+                }
+            }
+        }
+
         return this;
     }
 
     @Override
-    public Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData, long timeDue) {
-        State stateAfterTransition = transitionFunction(game);
+    public State transitionFunction(Game game, BoardData boardData,
+                                    HashMap<Constants.GHOST, State> ghostStates, Constants.GHOST anotherGhost) {
+        if (game.wasPowerPillEaten()){
+            return new RetreatState(ghost, game);
+        }
+
+        LinkedList<Integer> powerpills = boardData.getRemainingPowerPillsIndices();
+        MessageList headingMessage = boardData.getSmartMessenger().getCurrentMessages().
+                selectType(Message.MessageType.I_AM_HEADING).selectSender(anotherGhost);
+        if (headingMessage.size() != 1) {
+            return this;
+        }
+        int heading = headingMessage.get(0).getData();
+        if (headingMessage.size() == 1 && powerpills.contains(heading)) {
+            return new GuardingState(ghost, game, heading);
+        }
+
+        return this;
+    }
+
+    @Override
+    public Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData,
+                                 HashMap<Constants.GHOST, State> ghostStates, long timeDue) {
+        State stateAfterTransition = transitionFunction(game, boardData, ghostStates);
         if (stateAfterTransition != this) {
             context.state = stateAfterTransition;
             return null;
@@ -184,60 +242,97 @@ class CatchingState implements State {
 
         return getMove(game, boardData);
     }
+
+    @Override
+    public String toString() {
+        return "CatchingState";
+    }
 }
 
 /** Duszek chodzi po najmniejszym cyklu dookoła zadanego pola
  *  Jest też odporny na losowe zmiany kierunku */
-class GuardingGhost extends IndividualGhostController {
-    private BoardData boardData;
-    private boolean initialMoveMade;
-    private Boolean STATES_NOT_IMPLEMENTED = true;
+class GuardingState implements State {
+    private static final int INITIAL_POSITION = -1;
+    private Constants.GHOST ghost;
+    private Integer selectedPowerpill;
+    private Integer myPosition;
+    private Constants.MOVE lastMove;
 
-    public GuardingGhost(Constants.GHOST ghost) {
-        super(ghost);
-        boardData = new BoardData();
-        initialMoveMade = false;
+
+    GuardingState(Constants.GHOST ghost, Game game, int selectedPowerpill) {
+        this.ghost = ghost;
+        this.selectedPowerpill = selectedPowerpill;
+        System.out.println(String.format("Go to superpill %d", selectedPowerpill));
+        myPosition = game.getGhostCurrentNodeIndex(this.ghost);
+        lastMove = game.getGhostLastMoveMade(this.ghost);
     }
 
     @Override
-    public Constants.MOVE getMove(Game game, long timeDue) {
-        boardData.update(game);
-
-        if (game.wasGhostEaten(ghost) || game.wasPacManEaten()){
-            initialMoveMade = false;
-        }
-
-//        int powerpillToRemove = -1;
-//        for (int powerpillIndex : boardData.getRemainingPowerPillsIndices()) {
-//            if (game.isNodeObservable(powerpillIndex) &&
-//                    !game.isPowerPillStillAvailable(game.getPowerPillIndex(powerpillIndex))) {
-//                powerpillToRemove = powerpillIndex;
-//            }
-//        }
+    public Constants.MOVE getMove(Game game, BoardData boardData) {
 
         Boolean requiresAction = game.doesGhostRequireAction(ghost);
         if (requiresAction != null && requiresAction)
         {
-            int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
-            Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
+            myPosition = game.getGhostCurrentNodeIndex(this.ghost);
+            lastMove = game.getGhostLastMoveMade(this.ghost);
 
-            int selectedPowerpill;
-            if (STATES_NOT_IMPLEMENTED && boardData.getRemainingPowerPillsIndices().size() == 0) {
-                selectedPowerpill = game.getPowerPillIndices()[0];
-            } else {
-                selectedPowerpill = boardData.getShortestCycleWithPowerpill(
-                        boardData.getRemainingPowerPillsIndices(), myPosition, lastMove, initialMoveMade);
-            }
-            System.out.println(String.format("Go to superpill %d", selectedPowerpill));
 
             Constants.MOVE move = boardData.nextMoveTowardsTarget(myPosition, selectedPowerpill, lastMove);
 
-            initialMoveMade = true;
             return move;
         }
         return Constants.MOVE.NEUTRAL;
     }
+
+    @Override
+    public State transitionFunction(Game game, BoardData boardData, HashMap<Constants.GHOST, State> ghostStates) {
+        if (game.wasPowerPillEaten()){
+            return new RetreatState(ghost, game);
+        }
+
+        if (boardData.getRemainingPowerPillsIndices().size() == 0 ||
+                !Objects.equals(selectedPowerpill, boardData.getPowerpillWithShortestCycle(myPosition, lastMove))) {
+            boardData.getSmartMessenger().broadcastMessageIAmHeading(INITIAL_POSITION);
+            return new CatchingState(ghost);
+        }
+
+        return this;
+    }
+
+    @Override
+    public State transitionFunction(Game game, BoardData boardData,
+                                    HashMap<Constants.GHOST, State> ghostStates, Constants.GHOST anotherGhost) {
+        if (game.wasPowerPillEaten()){
+            return new RetreatState(ghost, game);
+        }
+
+        MessageList headingMessage = boardData.getSmartMessenger().getCurrentMessages().
+                selectType(Message.MessageType.I_AM_HEADING).selectSender(anotherGhost);
+        if (headingMessage.size() == 1 && headingMessage.get(0).getData() == INITIAL_POSITION) {
+            return new CatchingState(ghost);
+        }
+
+        return this;
+    }
+
+    @Override
+    public Constants.MOVE Handle(GhostContext context, Game game, BoardData boardData,
+                                 HashMap<Constants.GHOST, State> ghostStates, long timeDue) {
+        State stateAfterTransition = transitionFunction(game, boardData, ghostStates);
+        if (stateAfterTransition != this) {
+            context.state = stateAfterTransition;
+            return null;
+        }
+
+        return getMove(game, boardData);
+    }
+
+    @Override
+    public String toString() {
+        return "GuardingState";
+    }
 }
+
 
 class GhostContext extends IndividualGhostController {
     State state;
@@ -261,20 +356,15 @@ class GhostContext extends IndividualGhostController {
 
         boardData.update(game);
 
-        if (ghost == Constants.GHOST.PINKY) {
-            System.out.println(boardData.toString());
+        for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
+            State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(
+                    game, boardData, ghostStates, anotherGhost);
+            ghostStates.put(anotherGhost, stateAfterTransition);
         }
-
-        MessageList otherMessages = boardData.getSmartMessenger().getMessagesHistory().excludeType(Message.MessageType.I_AM);
 
         Constants.MOVE move = null;
         while (move == null) {
-            move = state.Handle(this, game, boardData, timeDue);
-        }
-
-        for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
-            State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(game, anotherGhost);
-            ghostStates.put(anotherGhost, stateAfterTransition);
+            move = state.Handle(this, game, boardData, ghostStates, timeDue);
         }
 
         return move;
@@ -285,7 +375,7 @@ public class StateGhosts extends MASController {
     public StateGhosts() {
         super(true, new EnumMap<Constants.GHOST, IndividualGhostController>(Constants.GHOST.class));
         controllers.put(Constants.GHOST.BLINKY, new GhostContext(Constants.GHOST.BLINKY));
-        controllers.put(Constants.GHOST.PINKY, new GuardingGhost(Constants.GHOST.PINKY));
+        controllers.put(Constants.GHOST.PINKY, new GhostContext(Constants.GHOST.PINKY));
         controllers.put(Constants.GHOST.INKY, new GhostContext(Constants.GHOST.INKY));
         controllers.put(Constants.GHOST.SUE, new GhostContext(Constants.GHOST.SUE));
     }

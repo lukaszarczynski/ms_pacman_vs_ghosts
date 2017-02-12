@@ -44,8 +44,9 @@ interface IBoardData {
 	public Constants.MOVE nextMoveTowardsTarget(int initialPosition, int finalPosition, Constants.MOVE lastMove);
 	public LinkedList<Integer> getNeighbors(int x, int y);
 	public LinkedList<Integer> getNeighbors(int index);
-	public Integer getShortestCycleWithPowerpill(LinkedList<Integer> powerpillIndices, int position,
-                                                 Constants.MOVE lastMove, Boolean initialMoveMade);
+	public Integer getPowerpillWithShortestCycle(int position, Constants.MOVE lastMove);
+	public Integer getDistanceToPowerpillWithShortestCycleNearestToSomeGhost();
+	public Integer getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(int position);
 }
 
 
@@ -81,6 +82,8 @@ public class BoardData implements IBoardData {
 	private final GHOST clientGhost;
 	private boolean messaging = false;
 	private SmartMessenger smartMessanger;
+
+	private static final int LAIR_INDEX = 1292;
 
 
 	/** Konstruktor dla pacmana. */
@@ -393,28 +396,20 @@ public class BoardData implements IBoardData {
     }
 
     @Override
-    public Integer getShortestCycleWithPowerpill(LinkedList<Integer> powerpillIndices, int position,
-                                                 Constants.MOVE lastMove, Boolean initialMoveMade) {
+    public Integer getPowerpillWithShortestCycle(int position, Constants.MOVE lastMove) {
+        LinkedList<Integer> powerpillIndices = getRemainingPowerPillsIndices();
 	    if (powerpillIndices.size() == 0) {
-	        return -1;
+	        throw new ArrayStoreException();
         }
         int selectedPowerpill = powerpillIndices.getFirst();
 	    int currentCycleLength = cycleLength(selectedPowerpill);
 	    int currentDistance;
-	    if (initialMoveMade) {
-	        currentDistance = game.getShortestPath(position, selectedPowerpill, lastMove).length;
-        } else {
-            currentDistance = game.getShortestPath(position, selectedPowerpill).length;
-        }
+		currentDistance = Integer.MAX_VALUE;
 
         for (int powerPillIndex : powerpillIndices) {
             int newCycleLength = cycleLength(powerPillIndex);
             int newDistance;
-            if (initialMoveMade) {
-	            newDistance = game.getShortestPath(position, powerPillIndex, lastMove).length;
-            } else {
-                newDistance = game.getShortestPath(position, powerPillIndex).length;
-            }
+			newDistance = game.getShortestPath(position, powerPillIndex, lastMove).length;
 
             if (newCycleLength < currentCycleLength ||
                     ((newCycleLength == currentCycleLength) && newDistance < currentDistance)) {
@@ -424,6 +419,65 @@ public class BoardData implements IBoardData {
             }
         }
         return selectedPowerpill;
+    }
+
+    @Override
+    public Integer getDistanceToPowerpillWithShortestCycleNearestToSomeGhost() {
+	    LinkedList<Integer> powerpillIndices = getRemainingPowerPillsIndices();
+        if (powerpillIndices.size() == 0) {
+	        throw new ArrayStoreException();
+        }
+        int selectedPowerpill = powerpillIndices.getFirst();
+	    int currentCycleLength = cycleLength(selectedPowerpill);
+	    int currentDistance;
+		currentDistance = Integer.MAX_VALUE;
+
+        for (int powerPillIndex : powerpillIndices) {
+            for (DataTime dataTime : ghostIndices.values()) {
+                int position = dataTime.value;
+                if (position != LAIR_INDEX) {
+                    int newCycleLength = cycleLength(powerPillIndex);
+                    int newDistance;
+                    newDistance = game.getShortestPath(position, powerPillIndex).length;
+
+                    if (newCycleLength < currentCycleLength ||
+                            ((newCycleLength == currentCycleLength) && newDistance < currentDistance)) {
+                        selectedPowerpill = powerPillIndex;
+                        currentCycleLength = newCycleLength;
+                        currentDistance = newDistance;
+                    }
+                }
+            }
+        }
+        return currentDistance;
+    }
+
+    @Override
+    public Integer getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(int position) {
+	    LinkedList<Integer> powerpillIndices = getRemainingPowerPillsIndices();
+        if (powerpillIndices.size() == 0) {
+	        throw new ArrayStoreException();
+        }
+        int selectedPowerpill = powerpillIndices.getFirst();
+	    int currentCycleLength = cycleLength(selectedPowerpill);
+	    int currentDistance;
+		currentDistance = Integer.MAX_VALUE;
+
+        for (int powerPillIndex : powerpillIndices) {
+            if (position != LAIR_INDEX) {
+                int newCycleLength = cycleLength(powerPillIndex);
+                int newDistance;
+                newDistance = game.getShortestPath(position, powerPillIndex).length;
+
+                if (newCycleLength < currentCycleLength ||
+                        ((newCycleLength == currentCycleLength) && newDistance < currentDistance)) {
+                    selectedPowerpill = powerPillIndex;
+                    currentCycleLength = newCycleLength;
+                    currentDistance = newDistance;
+                }
+            }
+        }
+        return currentDistance;
     }
 
     /** Długość najkrótszego cyklu przechodzącego przez dane pole. */
