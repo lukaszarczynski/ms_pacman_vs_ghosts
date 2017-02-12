@@ -81,7 +81,7 @@ public class POPacMan extends PacmanController {
             Boolean pillStillAvailable = game.isPillStillAvailable(i);
             if (pillStillAvailable == null) continue;
             try {
-                if (game.isPowerPillStillAvailable(pills[i])) {
+                if (game.isPowerPillStillAvailable(i)) {
                     targets.add(powerPills[i]);
                 }
             } catch (Exception e) {
