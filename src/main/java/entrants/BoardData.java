@@ -1,8 +1,7 @@
 package entrants;
 
-import java.util.EnumMap;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import pacman.game.Constants;
 import pacman.game.Constants.GHOST;
@@ -47,9 +46,16 @@ interface IBoardData {
 	public Constants.MOVE nextMoveTowardsTarget(int initialPosition, int finalPosition, Constants.MOVE lastMove);
 	public LinkedList<Integer> getNeighbors(int x, int y);
 	public LinkedList<Integer> getNeighbors(int index);
+	public LinkedList<Integer> getFreeNeighbors(int index);
+	public LinkedList<Integer> getFreeNeighbors(int x, int y);
 	public Integer getPowerpillWithShortestCycle(int position, Constants.MOVE lastMove);
 	public Integer getDistanceToPowerpillWithShortestCycleNearestToSomeGhost();
 	public Integer getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(int position);
+
+	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps);
+	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions);
+	public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition);
+	public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition, int steps);
 }
 
 
@@ -71,6 +77,7 @@ public class BoardData implements IBoardData {
 	private char powerPillChar = '$';
 	private char corridorChar = ' ';
 	private char pacmanChar = '@';
+	private char floodedChar = '~';
 
 	private Game game;
 	private Node[] nodes;
@@ -82,6 +89,7 @@ public class BoardData implements IBoardData {
 	private int lairIndex;
 
 	private DataTime pacmanIndex;
+	private HashSet<Integer> possiblePacmanPositions;
 	private EnumMap<GHOST, DataTime> ghostIndices = new EnumMap<>(GHOST.class);
 	private EnumMap<GHOST, Constants.MOVE> ghostDirections = new EnumMap<GHOST, Constants.MOVE>(GHOST.class);
 
@@ -227,13 +235,17 @@ public class BoardData implements IBoardData {
 	private void updatePacman() {
 		int pacmanCurrentIndex = game.getPacmanCurrentNodeIndex();
 		if (pacmanCurrentIndex >= 0) {
+		    possiblePacmanPositions = new HashSet<>();
+		    possiblePacmanPositions.add(pacmanCurrentIndex);
 			setPacmanIndex(pacmanCurrentIndex);
 			if (messaging) {
 				smartMessanger.broadcastMessagePacmanSeen(pacmanCurrentIndex);
 //    			System.out.format("%d. %s wysyła info o pacmanie, że jest on w %d\n",
 //    			game.getCurrentLevelTime(), clientGhost, pacmanCurrentIndex);
 			}
-		}
+		} else if (game.getCurrentLevelTime() > 0) {
+		    possiblePacmanPositions = basicFlooding(possiblePacmanPositions);
+        }
 	}
 
 	private void updateGhosts() {
@@ -281,6 +293,8 @@ public class BoardData implements IBoardData {
 
                 if (message.getTick() > getPacmanIndex().time) {
                 	setPacmanIndex(message.getData(), message.getTick());
+		            possiblePacmanPositions = basicFlooding(message.getData(),
+                            game.getCurrentLevelTime() - message.getTick());
                 }
             }
             else if (message.getType() == MessageType.I_AM) {
@@ -295,13 +309,14 @@ public class BoardData implements IBoardData {
 	}
 
 	private void initPositions() {
-		setPacmanIndex(pacmanInitIndex);
 		for (GHOST ghost : GHOST.values()) {
 			setGhostIndex(ghost, game.getGhostInitialNodeIndex());
 		}
         lairIndex = game.getCurrentMaze().lairNodeIndex;
 		pacmanInitIndex = game.getCurrentMaze().initialPacManNodeIndex;
 		setPacmanIndex(pacmanInitIndex);
+		possiblePacmanPositions = new HashSet<>();
+		possiblePacmanPositions.add(pacmanInitIndex);
 		for (GHOST ghost : GHOST.values()) {
 		    setGhostIndex(ghost, lairIndex);
         }
@@ -461,10 +476,10 @@ public class BoardData implements IBoardData {
     public LinkedList<Integer> getNeighbors(int x, int y) {
 
         Node[] nodeNeighborhood = {
-                nodeBoard[y][x - 1],
-                nodeBoard[y][x + 1],
-                nodeBoard[y - 1][x],
-                nodeBoard[y + 1][x]
+                nodeBoard[y][(x - 1 + width) % width],
+                nodeBoard[y][(x + 1) % width],
+                nodeBoard[(y - 1 + height) % height][x],
+                nodeBoard[(y + 1) % height][x]
         };
         LinkedList<Integer> neighborsIndices = new LinkedList<>();
         for (Node node : nodeNeighborhood) {
@@ -480,7 +495,18 @@ public class BoardData implements IBoardData {
 	    return getNeighbors(indexX(index), indexY(index));
     }
 
-    @Override
+	@Override
+	public LinkedList<Integer> getFreeNeighbors(int index) {
+		return getFreeNeighbors(indexX(index), indexY(index));
+	}
+
+	@Override
+	public LinkedList<Integer> getFreeNeighbors(int x, int y) {
+		return getNeighbors(x, y).stream().filter(neighbor -> !isWall(neighbor)).
+				collect(Collectors.toCollection(LinkedList::new));
+	}
+
+	@Override
     public Integer getPowerpillWithShortestCycle(int position, Constants.MOVE lastMove) {
         LinkedList<Integer> powerpillIndices = getRemainingPowerPillsIndices();
 	    if (powerpillIndices.size() == 0) {
@@ -586,6 +612,39 @@ public class BoardData implements IBoardData {
         return pathFrom.length + pathTo.length;
     }
 
+    @Override
+    public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps) {
+        HashSet<Integer> newPositions = new HashSet<>();
+        for (int i=0; i<steps; i++) {
+            for (int position : pacmanInitialPositions) {
+                for (int neighbor : getFreeNeighbors(position)) {
+                    newPositions.add(neighbor);
+                }
+            }
+            pacmanInitialPositions.addAll(newPositions);
+        }
+        return pacmanInitialPositions;
+	}
+
+	@Override
+	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions) {
+        return basicFlooding(pacmanInitialPositions, 1);
+    }
+
+    @Override
+    public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition) {
+        HashSet<Integer> pacmanInitialPositions = new HashSet<>();
+        pacmanInitialPositions.add(pacmanInitialPosition);
+        return basicFlooding(pacmanInitialPositions);
+    }
+
+    @Override
+    public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition, int steps) {
+        HashSet<Integer> pacmanInitialPositions = new HashSet<>();
+        pacmanInitialPositions.add(pacmanInitialPosition);
+        return basicFlooding(pacmanInitialPositions, steps);
+    }
+
     private boolean compareIndexCoords(int index, int x, int y) {
 		return indexX(index) == x && indexY(index) == y;
 	}
@@ -674,6 +733,11 @@ public class BoardData implements IBoardData {
 		for (int i = 0; i < board.length; ++i) {
 			boardCopy[i] = board[i].clone();
 		}
+		for (int possiblePosition : possiblePacmanPositions) {
+		    if (isEmpty(possiblePosition)) {
+                setBoardElement(possiblePosition, floodedChar);
+            }
+        }
 		setBoardElement(getPacmanIndex().value, pacmanChar);
 		for (GHOST ghost : GHOST.values()) {
 			setBoardElement(getGhostIndex(ghost).value, ghost.toString().charAt(0));
