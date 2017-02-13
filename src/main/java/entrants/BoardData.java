@@ -13,6 +13,12 @@ import pacman.game.internal.Node;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 
+enum PROBABILITY {
+    UNIFORM,
+    TRIANGULAR_WITH_MANHATTAN_DISTANCE,
+    TRIANGULAR_WITH_REAL_DISTANCE
+}
+
 /** Co najmniej te metody chcemy udostępniać. */
 interface IBoardData {
 	public void update(Game game);
@@ -45,6 +51,8 @@ interface IBoardData {
 	public Integer getExactNumberOfPowerpills();
 	public LinkedList<Integer> getRemainingPillIndices();
 	public LinkedList<Integer> getRemainingPowerPillsIndices();
+	public Integer getFloodingTime();
+    public HashSet<Integer> getPossiblePacmanPositions();
 
 	public Constants.MOVE nextMoveTowardsTarget(int initialPosition, int finalPosition, Constants.MOVE lastMove);
 	public LinkedList<Integer> getNeighbors(int x, int y);
@@ -63,9 +71,18 @@ interface IBoardData {
 	public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions);
 	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition);
 	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition, int steps);
+	public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps);
+	public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions);
+	public HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition);
+	public HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition, int steps);
 
-	public double unnormalizedProbabilityOfPacmanAtPosition(Set<Integer> positions,
-                                                            int initialPosition, int position);
+	public double unnormalizedProbabilityOfPacmanAtPosition(HashSet<Integer> positions, int initialPosition,
+                                                            int position, int floodingTime);
+	public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
+                                                           int initialPosition, int floodingTime);
+	public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
+                                                           int initialPosition, int floodingTime);
+	public HashSet<Integer> positionsVisibleFromIndex(int index);
 
 	/** Funkcja oceny w stanie CatchingState */
 	public int numberOfFloodedPositions(Set<Integer> floodedPositios, int initialNumberOfFloodedPositions,
@@ -82,6 +99,9 @@ interface IBoardData {
  *  Można sobie wyprintować obiekt BoardData (planszę i inne dane) dzięki toString(). */
 public class BoardData implements IBoardData {
     public static final int INITIAL_POSITION = -1;
+    private static final PROBABILITY PROBABILITY_IN_USE = PROBABILITY.TRIANGULAR_WITH_MANHATTAN_DISTANCE;
+    private static final double MIN_PROBABILITY = 0.6;
+
     private int height = 120;
 	private int width = 109;
 	private char[][] board = new char[height][width];
@@ -104,6 +124,7 @@ public class BoardData implements IBoardData {
 
 	private DataTime pacmanIndex;
 	private HashSet<Integer> possiblePacmanPositions;
+	private Integer floodingTime;
 	private EnumMap<GHOST, DataTime> ghostIndices = new EnumMap<>(GHOST.class);
 	private EnumMap<GHOST, Constants.MOVE> ghostDirections = new EnumMap<GHOST, Constants.MOVE>(GHOST.class);
 
@@ -251,6 +272,7 @@ public class BoardData implements IBoardData {
 		if (pacmanCurrentIndex >= 0) {
 		    possiblePacmanPositions = new HashSet<>();
 		    possiblePacmanPositions.add(pacmanCurrentIndex);
+		    floodingTime = 1;
 			setPacmanIndex(pacmanCurrentIndex);
 			if (messaging) {
 				smartMessanger.broadcastMessagePacmanSeen(pacmanCurrentIndex);
@@ -259,6 +281,7 @@ public class BoardData implements IBoardData {
 			}
 		} else if (game.getCurrentLevelTime() > 0) {
 		    possiblePacmanPositions = floodingStoppedByGhost(possiblePacmanPositions);
+		    floodingTime++;
         }
 	}
 
@@ -317,6 +340,7 @@ public class BoardData implements IBoardData {
                 	setPacmanIndex(message.getData(), message.getTick());
 		            possiblePacmanPositions = floodingStoppedByGhost(message.getData(),
                             game.getCurrentLevelTime() - message.getTick());
+		            floodingTime += game.getCurrentLevelTime() - message.getTick();
                 }
             }
 
@@ -331,6 +355,7 @@ public class BoardData implements IBoardData {
 		pacmanInitIndex = game.getCurrentMaze().initialPacManNodeIndex;
 		setPacmanIndex(pacmanInitIndex);
 		possiblePacmanPositions = new HashSet<>();
+		floodingTime = 1;
 		possiblePacmanPositions.add(pacmanInitIndex);
 		for (GHOST ghost : GHOST.values()) {
 		    setGhostIndex(ghost, lairIndex);
@@ -734,12 +759,85 @@ public class BoardData implements IBoardData {
         return floodingStoppedByGhost(pacmanInitialPositions, steps);
     }
 
+    /** Zalewanie z usuwaniem wszystkich pól, które widzi jakiś duszek */
     @Override
-    public double unnormalizedProbabilityOfPacmanAtPosition(Set<Integer> positions, int initialPosition, int position) {
+    public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps) {
+        return flooding(pacmanInitialPositions, steps, true, true);
+    }
+
+    @Override
+    public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions) {
+        return floodingWithDeletionOnSight(pacmanInitialPositions, 1);
+    }
+
+    @Override
+    public HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition) {
+        return floodingWithDeletionOnSight(pacmanInitialPosition, 1);
+    }
+
+    @Override
+    public HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition, int steps) {
+        HashSet<Integer> pacmanInitialPositions = new HashSet<>();
+        pacmanInitialPositions.add(pacmanInitialPosition);
+        return floodingWithDeletionOnSight(pacmanInitialPositions, steps);
+    }
+
+    @Override
+    public double unnormalizedProbabilityOfPacmanAtPosition(HashSet<Integer> positions, int initialPosition,
+                                                            int position, int floodingTime) {
         if (positions.contains(position)) {
-            return 1.0;
+            switch (PROBABILITY_IN_USE) {
+                case UNIFORM:
+                    return 1.0;
+                case TRIANGULAR_WITH_MANHATTAN_DISTANCE:
+                    return -(1. - MIN_PROBABILITY) * game.getManhattanDistance(initialPosition, position) / floodingTime + 1;
+                case TRIANGULAR_WITH_REAL_DISTANCE:
+                    return -(1. - MIN_PROBABILITY) * game.getShortestPathDistance(initialPosition, position) / floodingTime + 1;
+            }
         }
         return 0.0;
+    }
+
+    @Override
+    public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
+                                                           int initialPosition, int floodingTime) {
+        double unnormalizedProbability = 0;
+        double normalizationDivident = 0;
+        if (PROBABILITY_IN_USE == PROBABILITY.UNIFORM) {
+            normalizationDivident = positions.size();
+        } else {
+            for (int position : positions) {
+                normalizationDivident += unnormalizedProbabilityOfPacmanAtPosition(positions, initialPosition,
+                        position, floodingTime);
+            }
+        }
+        for (int position : selectedPositions) {
+            unnormalizedProbability += unnormalizedProbabilityOfPacmanAtPosition(positions, initialPosition,
+                    position, floodingTime);
+        }
+        return unnormalizedProbability / normalizationDivident;
+    }
+
+    @Override
+    public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
+                                                                   int initialPosition, int floodingTime) {
+        HashSet<Integer> positionsVisibleFromIndex = positionsVisibleFromIndex(index);
+        return normalizedProbabilityOfSelectedPositions(positions, positionsVisibleFromIndex,
+                initialPosition, floodingTime);
+    }
+
+    @Override
+    public HashSet<Integer> positionsVisibleFromIndex(int index) {
+        HashSet<Integer> positionsVisibleFromIndex = new HashSet<>();
+        positionsVisibleFromIndex.add(index);
+        for (Constants.MOVE direction : Constants.MOVE.values()) {
+            int currentPosition = index;
+            while (currentPosition >= 0 && !isWall(currentPosition)) {
+                positionsVisibleFromIndex.add(currentPosition);
+                currentPosition = game.getNeighbour(currentPosition, direction);
+            }
+        }
+        return positionsVisibleFromIndex;
     }
 
     /** Funkcja oceny w stanie CatchingState */
@@ -864,6 +962,14 @@ public class BoardData implements IBoardData {
 		board = boardCopy;
 		return str;
 	}
+
+    public Integer getFloodingTime() {
+        return floodingTime;
+    }
+
+    public HashSet<Integer> getPossiblePacmanPositions() {
+	    return possiblePacmanPositions;
+    }
 }
 
 
