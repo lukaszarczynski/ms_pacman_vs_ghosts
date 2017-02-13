@@ -39,6 +39,7 @@ interface IBoardData {
 	public boolean isGhost(GHOST ghost, int index, int treshold);
 	public boolean isGhost(int index);
 	public boolean isGhostOrGhostsNeighbor(int index);
+	public boolean isNodeObservableBySomeGhost(int index);
 
 	public void setPacmanIndex(int index);
 	public void setPacmanIndex(int index, int time);
@@ -280,7 +281,7 @@ public class BoardData implements IBoardData {
 //    			game.getCurrentLevelTime(), clientGhost, pacmanCurrentIndex);
 			}
 		} else if (game.getCurrentLevelTime() > 0) {
-		    possiblePacmanPositions = floodingStoppedByGhost(possiblePacmanPositions);
+		    possiblePacmanPositions = floodingWithDeletionOnSight(possiblePacmanPositions);
 		    floodingTime++;
         }
 	}
@@ -338,7 +339,7 @@ public class BoardData implements IBoardData {
 
                 if (message.getTick() > getPacmanIndex().time) {
                 	setPacmanIndex(message.getData(), message.getTick());
-		            possiblePacmanPositions = floodingStoppedByGhost(message.getData(),
+		            possiblePacmanPositions = floodingWithDeletionOnSight(message.getData(),
                             game.getCurrentLevelTime() - message.getTick());
 		            floodingTime += game.getCurrentLevelTime() - message.getTick();
                 }
@@ -449,6 +450,17 @@ public class BoardData implements IBoardData {
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean isNodeObservableBySomeGhost(int index) {
+        boolean nodeObservableBySomeGhost = false;
+        for (GHOST ghost : GHOST.values()) {
+            if (isNodeObservable(index, getGhostIndex(ghost).value)) {
+                nodeObservableBySomeGhost = true;
+            }
+        }
+        return nodeObservableBySomeGhost;
     }
 
     /** Sprawdza, czy wydarzenie się przeterminowało. */
@@ -619,7 +631,6 @@ public class BoardData implements IBoardData {
 
                     if (newCycleLength < currentCycleLength ||
                             ((newCycleLength == currentCycleLength) && newDistance < currentDistance)) {
-                        selectedPowerpill = powerPillIndex;
                         currentCycleLength = newCycleLength;
                         currentDistance = newDistance;
                     }
@@ -648,7 +659,6 @@ public class BoardData implements IBoardData {
 
                 if (newCycleLength < currentCycleLength ||
                         ((newCycleLength == currentCycleLength) && newDistance < currentDistance)) {
-                    selectedPowerpill = powerPillIndex;
                     currentCycleLength = newCycleLength;
                     currentDistance = newDistance;
                 }
@@ -696,20 +706,38 @@ public class BoardData implements IBoardData {
                     }
                 }
             }
+            if (excludeObservable) {
+                for (GHOST ghost : GHOST.values()) {
+                    Set<Integer> visibleToGhost = positionsVisibleFromIndex(getGhostIndex(ghost).value);
+                    for (int visiblePosition : visibleToGhost) {
+                        if (pacmanInitialPositions.contains(visiblePosition)) {
+                            pacmanInitialPositions.remove(visiblePosition);
+                        }
+                    }
+                }
+            }
             for (int position : pacmanInitialPositions) {
                 for (int neighbor : getFreeNeighbors(position)) {
                     if (!pacmanInitialPositions.contains(neighbor) &&
-                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor))) {
+                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor)) &&
+                            (!excludeObservable || !isNodeObservableBySomeGhost(neighbor))) {
                         newPositions.add(neighbor);
                     }
                 }
             }
+            for (int neighbor : getFreeNeighbors(getPacmanIndex().value)) {
+                    if (!pacmanInitialPositions.contains(neighbor) &&
+                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor)) &&
+                            (!excludeObservable || !isNodeObservableBySomeGhost(neighbor))) {
+                        newPositions.add(neighbor);
+                    }
+                }
             pacmanInitialPositions.addAll(newPositions);
         }
         return pacmanInitialPositions;
 	}
 
-	/** Zalewanie ignorujące duszki, do przewidywania,
+    /** Zalewanie ignorujące duszki, do przewidywania,
      *  co może zrobić pacman po zjedzeniu potężnej pigułki */
 	@Override
     public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps) {
@@ -963,10 +991,12 @@ public class BoardData implements IBoardData {
 		return str;
 	}
 
+	@Override
     public Integer getFloodingTime() {
         return floodingTime;
     }
 
+    @Override
     public HashSet<Integer> getPossiblePacmanPositions() {
 	    return possiblePacmanPositions;
     }
