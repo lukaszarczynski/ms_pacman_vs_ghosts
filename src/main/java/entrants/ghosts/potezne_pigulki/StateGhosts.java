@@ -13,8 +13,13 @@ import java.util.*;
 
 abstract class State {
     public abstract String toString();
+    //* Wybieranie ruchu w danym stanie */
     public abstract Constants.MOVE getMove(Game game, BoardData boardData);
+
+    //* Funkcja przejścia używana przez duszka do określenia swojego stanu */
     public abstract State transitionFunction(Game game, BoardData boardData, HashMap<Constants.GHOST, State> ghostStates);
+
+    //* Funkcja przejścia używana do określenia stanu innych */
     public abstract State transitionFunction(Game game, BoardData boardData,
                                              HashMap<Constants.GHOST, State> ghostStates, Constants.GHOST anotherGhost);
 

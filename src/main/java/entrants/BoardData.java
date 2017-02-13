@@ -86,7 +86,7 @@ interface IBoardData {
 	public HashSet<Integer> positionsVisibleFromIndex(int index);
 
 	/** Funkcja oceny w stanie CatchingState */
-	public int numberOfFloodedPositions(Set<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+	public int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
                                         int depthInTree);
 }
 
@@ -826,6 +826,7 @@ public class BoardData implements IBoardData {
         return 0.0;
     }
 
+    /** Prawdopodobieństwo znalezienia pacmana na którejś pozycji z selectedPositions */
     @Override
     public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
                                                            int initialPosition, int floodingTime) {
@@ -846,6 +847,7 @@ public class BoardData implements IBoardData {
         return unnormalizedProbability / normalizationDivident;
     }
 
+    /** Funkcja oceny w stanach Searching (maksymalizujemy) i Retreat (minimalizujemy) */
     @Override
     public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
                                                                    int initialPosition, int floodingTime) {
@@ -870,7 +872,7 @@ public class BoardData implements IBoardData {
 
     /** Funkcja oceny w stanie CatchingState */
     @Override
-    public int numberOfFloodedPositions(Set<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+    public int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
                                         int depthInTree) {
         int numberOfFloodedPositions = floodedPositios.size();
         for (int powerpill : getRemainingPowerPillsIndices()) {
