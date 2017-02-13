@@ -63,6 +63,13 @@ interface IBoardData {
 	public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions);
 	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition);
 	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition, int steps);
+
+	public double unnormalizedProbabilityOfPacmanAtPosition(Set<Integer> positions,
+                                                            int initialPosition, int position);
+
+	/** Funkcja oceny w stanie CatchingState */
+	public int numberOfFloodedPositions(Set<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+                                        int depthInTree);
 }
 
 
@@ -725,6 +732,29 @@ public class BoardData implements IBoardData {
         HashSet<Integer> pacmanInitialPositions = new HashSet<>();
         pacmanInitialPositions.add(pacmanInitialPosition);
         return floodingStoppedByGhost(pacmanInitialPositions, steps);
+    }
+
+    @Override
+    public double unnormalizedProbabilityOfPacmanAtPosition(Set<Integer> positions, int initialPosition, int position) {
+        if (positions.contains(position)) {
+            return 1.0;
+        }
+        return 0.0;
+    }
+
+    /** Funkcja oceny w stanie CatchingState */
+    @Override
+    public int numberOfFloodedPositions(Set<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+                                        int depthInTree) {
+        int numberOfFloodedPositions = floodedPositios.size();
+        for (int powerpill : getRemainingPowerPillsIndices()) {
+            if (floodedPositios.contains(powerpill)) {
+                numberOfFloodedPositions += 40;
+            }
+        }
+        numberOfFloodedPositions = initialNumberOfFloodedPositions +
+                (numberOfFloodedPositions - initialNumberOfFloodedPositions) / depthInTree;
+        return numberOfFloodedPositions;
     }
 
     private boolean compareIndexCoords(int index, int x, int y) {
