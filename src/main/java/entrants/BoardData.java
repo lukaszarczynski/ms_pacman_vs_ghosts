@@ -10,6 +10,7 @@ import pacman.game.comms.Message.MessageType;
 import pacman.game.Game;
 import pacman.game.internal.Maze;
 import pacman.game.internal.Node;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 
 /** Co najmniej te metody chcemy udostępniać. */
@@ -30,6 +31,8 @@ interface IBoardData {
 	public boolean isPacman(int index, int treshold);
 	public boolean isGhost(GHOST ghost, int x, int y, int treshold);
 	public boolean isGhost(GHOST ghost, int index, int treshold);
+	public boolean isGhost(int index);
+	public boolean isGhostOrGhostsNeighbor(int index);
 
 	public void setPacmanIndex(int index);
 	public void setPacmanIndex(int index, int time);
@@ -56,6 +59,10 @@ interface IBoardData {
 	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions);
 	public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition);
 	public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition, int steps);
+	public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps);
+	public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions);
+	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition);
+	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition, int steps);
 }
 
 
@@ -188,8 +195,8 @@ public class BoardData implements IBoardData {
 
 		updatePills();
 		updatePowerPills();
-		updatePacman();
 		updateGhosts();
+		updatePacman();
 		if (game.wasPacManEaten()) {
 			initPositions();
 		}
@@ -244,7 +251,7 @@ public class BoardData implements IBoardData {
 //    			game.getCurrentLevelTime(), clientGhost, pacmanCurrentIndex);
 			}
 		} else if (game.getCurrentLevelTime() > 0) {
-		    possiblePacmanPositions = basicFlooding(possiblePacmanPositions);
+		    possiblePacmanPositions = floodingStoppedByGhost(possiblePacmanPositions);
         }
 	}
 
@@ -287,17 +294,7 @@ public class BoardData implements IBoardData {
 
     private void getAndProcessMessages() {
         for (Message message : smartMessanger.getCurrentMessages()) {
-            if (message.getType() == MessageType.PACMAN_SEEN) {
-//            	System.out.format("%d. %s odbiera od %s info o pacmanie podczas %d, posiadając dane z %d\n",
-//            			game.getCurrentLevelTime(), clientGhost, message.getSender(), message.getTick(), getPacmanIndex().time);
-
-                if (message.getTick() > getPacmanIndex().time) {
-                	setPacmanIndex(message.getData(), message.getTick());
-		            possiblePacmanPositions = basicFlooding(message.getData(),
-                            game.getCurrentLevelTime() - message.getTick());
-                }
-            }
-            else if (message.getType() == MessageType.I_AM) {
+            if (message.getType() == MessageType.I_AM) {
 //            	System.out.format("%d. %s odbiera od %s obecność podczas %d, posiadając dane z %d\n",
 //                		game.getCurrentLevelTime(), clientGhost, message.getSender(), message.getTick(), getGhostIndex(message.getSender()).time);
                 if (message.getTick() > getGhostIndex(message.getSender()).time) {
@@ -305,6 +302,17 @@ public class BoardData implements IBoardData {
                     setGhostIndex(message.getSender(), message.getData(), message.getTick());
                 }
             }
+            else if (message.getType() == MessageType.PACMAN_SEEN) {
+//            	System.out.format("%d. %s odbiera od %s info o pacmanie podczas %d, posiadając dane z %d\n",
+//            			game.getCurrentLevelTime(), clientGhost, message.getSender(), message.getTick(), getPacmanIndex().time);
+
+                if (message.getTick() > getPacmanIndex().time) {
+                	setPacmanIndex(message.getData(), message.getTick());
+		            possiblePacmanPositions = floodingStoppedByGhost(message.getData(),
+                            game.getCurrentLevelTime() - message.getTick());
+                }
+            }
+
         }
 	}
 
@@ -386,7 +394,32 @@ public class BoardData implements IBoardData {
 		return index == getGhostIndex(ghost).value && !expired(getGhostIndex(ghost).time, treshold);
 	}
 
-	/** Sprawdza, czy wydarzenie się przeterminowało. */
+    @Override
+    public boolean isGhost(int index) {
+        boolean isGhost = false;
+        for (GHOST ghost : GHOST.values()) {
+            if (index == getGhostIndex(ghost).value) {
+                isGhost = true;
+            }
+        }
+        return isGhost;
+    }
+
+    @Override
+    public boolean isGhostOrGhostsNeighbor(int index) {
+        if (isGhost(index)) {
+            return true;
+        }
+        LinkedList<Integer> neighborhood = getNeighbors(index);
+        for (int neighbor : neighborhood) {
+            if (isGhost(neighbor)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Sprawdza, czy wydarzenie się przeterminowało. */
 	private boolean expired(int eventTime, int treshold) {
 		return game.getCurrentLevelTime() - eventTime > treshold;
 	}
@@ -500,6 +533,7 @@ public class BoardData implements IBoardData {
 		return getFreeNeighbors(indexX(index), indexY(index));
 	}
 
+	/** Zwraca sąsiadów, którzy nie są ścianą */
 	@Override
 	public LinkedList<Integer> getFreeNeighbors(int x, int y) {
 		return getNeighbors(x, y).stream().filter(neighbor -> !isWall(neighbor)).
@@ -612,19 +646,43 @@ public class BoardData implements IBoardData {
         return pathFrom.length + pathTo.length;
     }
 
-    @Override
-    public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps) {
+    private HashSet<Integer> flooding(HashSet<Integer> pacmanInitialPositions, int steps,
+                                      boolean excludeGhostPositions, boolean excludeObservable) {
+        if (excludeObservable && !excludeGhostPositions) {
+            throw new NotImplementedException();
+        }
         HashSet<Integer> newPositions = new HashSet<>();
         for (int i=0; i<steps; i++) {
+            if (excludeGhostPositions) {
+                for (GHOST ghost : GHOST.values()) {
+                    LinkedList<Integer> ghostNeighborhood = getFreeNeighbors(getGhostIndex(ghost).value);
+                    ghostNeighborhood.add(getGhostIndex(ghost).value);
+                    for (int neighbor : ghostNeighborhood) {
+                        if (pacmanInitialPositions.contains(neighbor)) {
+                            pacmanInitialPositions.remove(neighbor);
+                        }
+                    }
+                }
+            }
             for (int position : pacmanInitialPositions) {
                 for (int neighbor : getFreeNeighbors(position)) {
-                    newPositions.add(neighbor);
+                    if (!pacmanInitialPositions.contains(neighbor) &&
+                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor))) {
+                        newPositions.add(neighbor);
+                    }
                 }
             }
             pacmanInitialPositions.addAll(newPositions);
         }
         return pacmanInitialPositions;
 	}
+
+	/** Zalewanie ignorujące duszki, do przewidywania,
+     *  co może zrobić pacman po zjedzeniu potężnej pigułki */
+	@Override
+    public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps) {
+        return flooding(pacmanInitialPositions, steps, false, false);
+    }
 
 	@Override
 	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions) {
@@ -643,6 +701,30 @@ public class BoardData implements IBoardData {
         HashSet<Integer> pacmanInitialPositions = new HashSet<>();
         pacmanInitialPositions.add(pacmanInitialPosition);
         return basicFlooding(pacmanInitialPositions, steps);
+    }
+
+    /** Zalewanie zatrzymujące się jeśli napotka duszka, do przewidywania,
+     *  co może zrobić pacman gdy duszki go łapią */
+    @Override
+    public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps) {
+        return flooding(pacmanInitialPositions, steps, true, false);
+    }
+
+    @Override
+    public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions) {
+        return floodingStoppedByGhost(pacmanInitialPositions, 1);
+    }
+
+    @Override
+    public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition) {
+        return floodingStoppedByGhost(pacmanInitialPosition, 1);
+    }
+
+    @Override
+    public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition, int steps) {
+        HashSet<Integer> pacmanInitialPositions = new HashSet<>();
+        pacmanInitialPositions.add(pacmanInitialPosition);
+        return floodingStoppedByGhost(pacmanInitialPositions, steps);
     }
 
     private boolean compareIndexCoords(int index, int x, int y) {
