@@ -32,6 +32,10 @@ abstract class State {
             return null;
         }
 
+        if (game.getCurrentLevelTime() < 50) {
+            return Constants.MOVE.LEFT;
+        }
+
         return getMove(game, boardData);
     }
 }
@@ -56,25 +60,48 @@ class RetreatState extends State {
 
         if (requiresAction != null && requiresAction)
         {
-            Constants.MOVE bestMove = null;
-            double bestScore = Double.NEGATIVE_INFINITY;
+            Constants.MOVE bestMove = Constants.MOVE.NEUTRAL;
+            double bestScore;
 
             int currentGhostIndex = game.getGhostCurrentNodeIndex(ghost);
             int lastSeenPacmanPosition = boardData.getPacmanIndexValue();
             Constants.MOVE lastMove = game.getGhostLastMoveMade(ghost);
 
+            int floodingTime = boardData.getFloodingTime();
+            int newFloodingTime = floodingTime;
+
+            boolean allScoresEqual = true;
+
+            HashMap<Constants.MOVE, HashSet<Integer>> newFloodedPositions = new HashMap<>();
+
             for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
-                int myNewPosition = game.getNeighbour(currentGhostIndex, move);
-                int newFloodingTime = boardData.getFloodingTime() + 1;
-                HashSet<Integer> newFloodedPositions = new HashSet<>(boardData.getPossiblePacmanPositions());
-                newFloodedPositions = boardData.basicFlooding(newFloodedPositions);
+                newFloodedPositions.put(move, new HashSet<>(boardData.getPossiblePacmanPositions()));
+            }
 
-                double score = boardData.retreatStateEvaluationFunction(newFloodedPositions, myNewPosition,
-                        lastSeenPacmanPosition, newFloodingTime);
+            for (int i=0; i<100 && allScoresEqual; i++) {
+                allScoresEqual = true;
+                HashSet<Double> scores = new HashSet<>();
+                bestMove = Constants.MOVE.NEUTRAL;
+                bestScore = Double.NEGATIVE_INFINITY;
 
-                if (score > bestScore) {
-                    bestMove = move;
-                    bestScore = score;
+                newFloodingTime++;
+
+                for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
+                    int myNewPosition = game.getNeighbour(currentGhostIndex, move);
+
+                    newFloodedPositions.put(move, boardData.basicFlooding(newFloodedPositions.get(move)));
+
+                    double score = boardData.retreatStateEvaluationFunction(newFloodedPositions.get(move), myNewPosition,
+                            lastSeenPacmanPosition, newFloodingTime);
+                    scores.add(score);
+                    if (scores.size() > 1) {
+                        allScoresEqual = false;
+                    }
+
+                    if (score > bestScore) {
+                        bestMove = move;
+                        bestScore = score;
+                    }
                 }
             }
             return bestMove;
@@ -110,7 +137,7 @@ class CatchingState extends State {
     private static final int TICK_THRESHOLD = 50;
     private static final float CONSISTENCY = 0.9f;
     private static final int NONE_PILL_GUARDED_MAX_TIME = 5;
-    private static final int MIN_LEVEL_TIME = 70;
+    private static final int MIN_LEVEL_TIME = 50;
 
     private Constants.GHOST ghost;
     private Random rand = new Random();
@@ -129,27 +156,52 @@ class CatchingState extends State {
 
         if (requiresAction != null && requiresAction)
         {
-            Constants.MOVE bestMove = null;
-            double bestScore = Double.NEGATIVE_INFINITY;
+            Constants.MOVE bestMove = Constants.MOVE.NEUTRAL;
+            double bestScore;
 
             int currentGhostIndex = game.getGhostCurrentNodeIndex(ghost);
             int lastSeenPacmanPosition = boardData.getPacmanIndexValue();
+            int initialNumberOfFloodedPositions;
             Constants.MOVE lastMove = game.getGhostLastMoveMade(ghost);
 
             EnumMap<Constants.GHOST, Constants.MOVE> ghostDirections = boardData.getGhostsDirections();
 
+            boolean allScoresEqual = true;
+
+            HashMap<Constants.MOVE, HashSet<Integer>> newFloodedPositions = new HashMap<>();
+
             for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
-                HashMap<Constants.GHOST, Integer> ghostPositions = boardData.getGhostsPositions();
-                int myNewPosition = game.getNeighbour(currentGhostIndex, move);
-                ghostPositions.put(ghost, myNewPosition);
-                HashSet<Integer> newFloodedPositions = new HashSet<>(boardData.getPossiblePacmanPositions());
-                newFloodedPositions = boardData.floodingStoppedByGhost(newFloodedPositions, 1, ghostPositions);
+                newFloodedPositions.put(move, new HashSet<>(boardData.getPossiblePacmanPositions()));
+            }
 
-                double score = boardData.numberOfFloodedPositions(newFloodedPositions);
 
-                if (score > bestScore) {
-                    bestMove = move;
-                    bestScore = score;
+            for (int i=0; i<100 && allScoresEqual; i++) {
+                allScoresEqual = true;
+                HashSet<Double> scores = new HashSet<>();
+                bestMove = Constants.MOVE.NEUTRAL;
+                bestScore = Double.NEGATIVE_INFINITY;
+                initialNumberOfFloodedPositions = boardData.numberOfFloodedPositions();
+
+                for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
+                    HashMap<Constants.GHOST, Integer> ghostPositions = boardData.getGhostsPositions();
+                    int myNewPosition = game.getNeighbour(currentGhostIndex, move);
+                    ghostPositions.put(ghost, myNewPosition);
+
+                    newFloodedPositions.put(move, boardData.floodingStoppedByGhost(newFloodedPositions.get(move),
+                            1, ghostPositions));
+
+                    double score = boardData.catchingStateEvaluationFunction(newFloodedPositions.get(move),
+                            initialNumberOfFloodedPositions, i, lastSeenPacmanPosition, myNewPosition);
+
+                    scores.add(score);
+                    if (scores.size() > 1) {
+                        allScoresEqual = false;
+                    }
+
+                    if (score > bestScore) {
+                        bestMove = move;
+                        bestScore = score;
+                    }
                 }
             }
             return bestMove;
@@ -231,7 +283,7 @@ class SearchingState extends State {
     private static final int TICK_THRESHOLD = 50;
     private static final float CONSISTENCY = 0.9f;
     private static final int NONE_PILL_GUARDED_MAX_TIME = 5;
-    private static final int MIN_LEVEL_TIME = 70;
+    private static final int MIN_LEVEL_TIME = 50;
 
     private Constants.GHOST ghost;
     private Random rand = new Random();
@@ -250,25 +302,48 @@ class SearchingState extends State {
 
         if (requiresAction != null && requiresAction)
         {
-            Constants.MOVE bestMove = null;
-            double bestScore = Double.NEGATIVE_INFINITY;
+            Constants.MOVE bestMove = Constants.MOVE.NEUTRAL;
+            double bestScore;
 
             int currentGhostIndex = game.getGhostCurrentNodeIndex(ghost);
             int lastSeenPacmanPosition = boardData.getPacmanIndexValue();
             Constants.MOVE lastMove = game.getGhostLastMoveMade(ghost);
 
+            int floodingTime = boardData.getFloodingTime();
+            int newFloodingTime = floodingTime;
+
+            boolean allScoresEqual = true;
+
+            HashMap<Constants.MOVE, HashSet<Integer>> newFloodedPositions = new HashMap<>();
+
             for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
-                int myNewPosition = game.getNeighbour(currentGhostIndex, move);
-                int newFloodingTime = boardData.getFloodingTime() + 1;
-                HashSet<Integer> newFloodedPositions = new HashSet<>(boardData.getPossiblePacmanPositions());
-                newFloodedPositions = boardData.basicFlooding(newFloodedPositions);
+                newFloodedPositions.put(move, new HashSet<>(boardData.getPossiblePacmanPositions()));
+            }
 
-                double score = boardData.searchingStateEvaluationFunction(newFloodedPositions, myNewPosition,
-                        lastSeenPacmanPosition, newFloodingTime);
+            for (int i=0; i<100 && allScoresEqual; i++) {
+                allScoresEqual = true;
+                HashSet<Double> scores = new HashSet<>();
+                bestMove = Constants.MOVE.NEUTRAL;
+                bestScore = Double.NEGATIVE_INFINITY;
 
-                if (score > bestScore) {
-                    bestMove = move;
-                    bestScore = score;
+                newFloodingTime++;
+
+                for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
+                    int myNewPosition = game.getNeighbour(currentGhostIndex, move);
+                    newFloodedPositions.put(move, boardData.basicFlooding(newFloodedPositions.get(move)));
+
+                    double score = boardData.searchingStateEvaluationFunction(newFloodedPositions.get(move), myNewPosition,
+                            lastSeenPacmanPosition, newFloodingTime);
+
+                    scores.add(score);
+                    if (scores.size() > 1) {
+                        allScoresEqual = false;
+                    }
+
+                    if (score > bestScore) {
+                        bestMove = move;
+                        bestScore = score;
+                    }
                 }
             }
             return bestMove;
@@ -478,7 +553,7 @@ class GhostContext extends IndividualGhostController {
             move = state.Handle(this, ghost, game, boardData, ghostStates, timeDue);
         }
 
-        System.out.println(boardData.toString());
+//        System.out.println(boardData.toString());
 
         return move;
     }

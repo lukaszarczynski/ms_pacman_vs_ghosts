@@ -95,11 +95,10 @@ interface IBoardData {
                                                                    int initialPosition, int floodingTime);
 	 HashSet<Integer> positionsVisibleFromIndex(int index);
 
-	/** Funkcja oceny w stanie CatchingState */
-	 int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
-                                        int depthInTree);
 	 int numberOfFloodedPositions(HashSet<Integer> floodedPositios);
 	 int numberOfFloodedPositions();
+	 public double catchingStateEvaluationFunction(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+                                        int depthInTree, int lastPacmanPosition, int myPosition);
 }
 
 
@@ -913,8 +912,7 @@ public class BoardData implements IBoardData {
     public double retreatStateEvaluationFunction(HashSet<Integer> positions, int index,
                                                                    int initialPosition, int floodingTime) {
         return -1.0 * normalizedProbabilityOfPositionsVisibleFromIndex(positions, index, initialPosition, floodingTime);
-        /* TODO: zwracanie uwagi na odległość,
-           TODO: jeśli zje pigułkę wnioskowanie, która to była,
+        /* TODO: jeśli zje pigułkę wnioskowanie, która to była,
            TODO: być może zalewanie, aż nie będzie 0,
            TODO: być może liczenie zalanych przed zjedzeniem pigułki jeśli jest 0
           */
@@ -925,8 +923,7 @@ public class BoardData implements IBoardData {
     public double searchingStateEvaluationFunction(HashSet<Integer> positions, int index,
                                                                    int initialPosition, int floodingTime) {
         return normalizedProbabilityOfPositionsVisibleFromIndex(positions, index, initialPosition, floodingTime);
-        /* TODO: zwracanie uwagi na odległość,
-           TODO: być może zalewanie, aż nie będzie 0
+        /* TODO: być może zalewanie, aż nie będzie 0
            TODO: Jaki tu chcemy rodzaj zalewania? Może połączenie dwóch?
 
            TODO: FUNKCJA POWINNA ZWRACAĆ PRAWD. ELEMENTÓW USUNIĘTYCH PRZEZ ZOBACZENIE
@@ -947,24 +944,24 @@ public class BoardData implements IBoardData {
         return positionsVisibleFromIndex;
     }
 
-    /** Funkcja oceny w stanie CatchingState */
     @Override
-    public int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
-                                        int depthInTree) {
-        int numberOfFloodedPositions = floodedPositios.size();
-        for (int powerpill : getRemainingPowerPillsIndices()) {
-            if (floodedPositios.contains(powerpill)) {
-                numberOfFloodedPositions += 40;
-            }
-        }
-        numberOfFloodedPositions = initialNumberOfFloodedPositions +
-                (numberOfFloodedPositions - initialNumberOfFloodedPositions) / depthInTree;
-        return numberOfFloodedPositions;
+    public double catchingStateEvaluationFunction(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+                                        int depthInTree, int lastPacmanPosition, int myPosition) {
+        int numberOfFloodedPositions = numberOfFloodedPositions(floodedPositios);
+        double evaluation = -1.0 * (initialNumberOfFloodedPositions +
+                (double)(numberOfFloodedPositions - initialNumberOfFloodedPositions) / (depthInTree + 1));
+        return evaluation - sqrt(game.getManhattanDistance(myPosition, lastPacmanPosition)) / 1000;
     }
 
     @Override
     public int numberOfFloodedPositions(HashSet<Integer> floodedPositios) {
-        return numberOfFloodedPositions(floodedPositios, 0, 1);
+        int numberOfFloodedPositions = floodedPositios.size();
+        for (int powerpill : getRemainingPowerPillsIndices()) {
+            if (floodedPositios.contains(powerpill)) {
+                numberOfFloodedPositions += 20;
+            }
+        }
+        return numberOfFloodedPositions;
     }
 
     @Override
