@@ -66,12 +66,15 @@ public class SimpleMinMax {
         		int distanceToPill = coGame.getShortestPathDistance(newIndex, closestPillIndex);
         		value -= Math.sqrt(distanceToPill);
         		
-//        		// ucieka od duchów, lecz idzie ku nim, gdy są jadalne
-//        		for (GHOST ghost : GHOST.values()) {
-//        			if (coGame.getGhostCurrentNodeIndex(ghost) != -1) {//        				
-//        				int distanceToGhost = coGame.getShortestPathDistance(
-//        												newIndex, 
-//        												coGame.getGhostCurrentNodeIndex(ghost));
+        		// ucieka od duchów, lecz idzie ku nim, gdy są jadalne
+        		for (GHOST ghost : GHOST.values()) {
+        			if (coGame.getGhostCurrentNodeIndex(ghost) != -1) {//        				
+        				int distanceToGhost = coGame.getShortestPathDistance(
+        												newIndex, 
+        												coGame.getGhostCurrentNodeIndex(ghost));
+        				if (coGame.getGhostLairTime(ghost) > 0) {
+        					value += 100;
+        				}
 //        				if (coGame.isGhostEdible(ghost)) {
 ////        					value += 1000. / distanceToGhost;
 //
@@ -79,8 +82,8 @@ public class SimpleMinMax {
 //        				else {
 ////            				value -= 100000. / distanceToGhost;
 //        				}
-//        			}
-//        		}
+        			}
+        		}
         	}
         	
         	value += random.nextFloat();
