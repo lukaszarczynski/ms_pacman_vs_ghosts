@@ -23,80 +23,83 @@ enum PROBABILITY {
 
 /** Co najmniej te metody chcemy udostępniać. */
 interface IBoardData {
-	public void update(Game game);
-	public SmartMessenger getSmartMessenger();
-	public String toString();
+	 void update(Game game);
+	 SmartMessenger getSmartMessenger();
+	 String toString();
 
-	public boolean isWall(int x, int y);
-	public boolean isWall(int index);
-	public boolean isEmpty(int x, int y);
-	public boolean isEmpty(int index);
-	public boolean isPill(int x, int y);
-	public boolean isPill(int index);
-	public boolean isPowerPill(int x, int y);
-	public boolean isPowerPill(int index);
-	public boolean isPacman(int x, int y, int treshold);
-	public boolean isPacman(int index, int treshold);
-	public boolean isGhost(GHOST ghost, int x, int y, int treshold);
-	public boolean isGhost(GHOST ghost, int index, int treshold);
-	public boolean isGhost(int index);
-	public boolean isGhostOrGhostsNeighbor(int index);
-	public boolean isNodeObservableBySomeGhost(int index);
+	 boolean isWall(int x, int y);
+	 boolean isWall(int index);
+	 boolean isEmpty(int x, int y);
+	 boolean isEmpty(int index);
+	 boolean isPill(int x, int y);
+	 boolean isPill(int index);
+	 boolean isPowerPill(int x, int y);
+	 boolean isPowerPill(int index);
+	 boolean isPacman(int x, int y, int treshold);
+	 boolean isPacman(int index, int treshold);
+	 boolean isGhost(GHOST ghost, int x, int y, int treshold);
+	 boolean isGhost(GHOST ghost, int index, int treshold);
+	 boolean isGhost(int index);
+	 boolean isGhostOrGhostsNeighbor(int index);
+	 boolean isNodeObservableBySomeGhost(int index);
 
-	public void setPacmanIndex(int index);
-	public void setPacmanIndex(int index, int time);
-	public DataTime getPacmanIndex();
-	public int getPacmanIndexValue();
-	public void setGhostIndex(GHOST ghost, int index);
-	public void setGhostIndex(GHOST ghost, int index, int time);
-	public void removePowerpill(GHOST ghost);
-	public DataTime getGhostIndex(GHOST ghost);
-	public Integer getLairIndex();
-	public Integer getExactNumberOfPowerpills();
-	public LinkedList<Integer> getRemainingPillIndices();
-	public LinkedList<Integer> getRemainingPowerPillsIndices();
-	public Integer getFloodingTime();
-    public HashSet<Integer> getPossiblePacmanPositions();
+	 void setPacmanIndex(int index);
+	 void setPacmanIndex(int index, int time);
+	 DataTime getPacmanIndex();
+	 int getPacmanIndexValue();
+	 void setGhostIndex(GHOST ghost, int index);
+	 void setGhostIndex(GHOST ghost, int index, int time);
+	 void removePowerpill(GHOST ghost);
+	 DataTime getGhostIndex(GHOST ghost);
+	 Integer getLairIndex();
+	 Integer getExactNumberOfPowerpills();
+	 LinkedList<Integer> getRemainingPillIndices();
+	 LinkedList<Integer> getRemainingPowerPillsIndices();
+	 Integer getFloodingTime();
+     HashSet<Integer> getPossiblePacmanPositions();
 
-	public Constants.MOVE nextMoveTowardsTarget(int initialPosition, int finalPosition, Constants.MOVE lastMove);
-	public LinkedList<Integer> getNeighbors(int x, int y);
-	public LinkedList<Integer> getNeighbors(int index);
-	public LinkedList<Integer> getFreeNeighbors(int index);
-	public LinkedList<Integer> getFreeNeighbors(int x, int y);
-	public Integer getPowerpillWithShortestCycle(int position, Constants.MOVE lastMove);
-	public Integer getDistanceToPowerpillWithShortestCycleNearestToSomeGhost();
-	public Integer getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(int position);
+	 Constants.MOVE nextMoveTowardsTarget(int initialPosition, int finalPosition, Constants.MOVE lastMove);
+	 LinkedList<Integer> getNeighbors(int x, int y);
+	 LinkedList<Integer> getNeighbors(int index);
+	 LinkedList<Integer> getFreeNeighbors(int index);
+	 LinkedList<Integer> getFreeNeighbors(int x, int y);
+	 Integer getPowerpillWithShortestCycle(int position, Constants.MOVE lastMove);
+	 Integer getDistanceToPowerpillWithShortestCycleNearestToSomeGhost();
+	 Integer getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(int position);
 
-	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps);
-	public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions);
-	public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition);
-	public HashSet<Integer> basicFlooding(Integer pacmanInitialPosition, int steps);
-	public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps);
-	public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions);
-	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition);
-	public HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition, int steps);
-	public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps);
-	public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions);
-	public HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition);
-	public HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition, int steps);
+	 HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps);
+	 HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions);
+	 HashSet<Integer> basicFlooding(Integer pacmanInitialPosition);
+	 HashSet<Integer> basicFlooding(Integer pacmanInitialPosition, int steps);
+	 HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps, HashMap<GHOST, Integer> ghostPositions);
+	 HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps);
+	 HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions);
+	 HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition);
+	 HashSet<Integer> floodingStoppedByGhost(Integer pacmanInitialPosition, int steps);
+	
+	 HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps, HashMap<GHOST, Integer> ghostPositions);
+	 HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps);
+	 HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions);
+	 HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition);
+	 HashSet<Integer> floodingWithDeletionOnSight(Integer pacmanInitialPosition, int steps);
 
-	public double unnormalizedProbabilityOfPacmanAtPosition(HashSet<Integer> positions, int initialPosition,
+	 double unnormalizedProbabilityOfPacmanAtPosition(HashSet<Integer> positions, int initialPosition,
                                                             int position, int floodingTime);
-	public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
+	 double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
                                                            int initialPosition, int floodingTime, int myPosition);
-	public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
+	 double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
                                                            int initialPosition, int floodingTime);
-	public double retreatStateEvaluationFunction(HashSet<Integer> positions, int index,
+	 double retreatStateEvaluationFunction(HashSet<Integer> positions, int index,
                                                            int initialPosition, int floodingTime);
-	public double searchingStateEvaluationFunction(HashSet<Integer> positions, int index,
+	 double searchingStateEvaluationFunction(HashSet<Integer> positions, int index,
                                                                    int initialPosition, int floodingTime);
-	public HashSet<Integer> positionsVisibleFromIndex(int index);
+	 HashSet<Integer> positionsVisibleFromIndex(int index);
 
 	/** Funkcja oceny w stanie CatchingState */
-	public int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+	 int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
                                         int depthInTree);
-	public int numberOfFloodedPositions(HashSet<Integer> floodedPositios);
-	public int numberOfFloodedPositions();
+	 int numberOfFloodedPositions(HashSet<Integer> floodedPositios);
+	 int numberOfFloodedPositions();
 }
 
 
@@ -460,6 +463,19 @@ public class BoardData implements IBoardData {
         }
         return false;
     }
+    
+    public boolean isGhostOrGhostsNeighbor(int index, HashMap<GHOST, Integer> ghostPositions) {
+        if (ghostPositions.values().contains(index)) {
+            return true;
+        }
+        LinkedList<Integer> neighborhood = getNeighbors(index);
+        for (int neighbor : neighborhood) {
+            if (ghostPositions.values().contains(neighbor)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     public boolean isNodeObservableBySomeGhost(int index) {
@@ -523,6 +539,18 @@ public class BoardData implements IBoardData {
     public DataTime getGhostIndex(GHOST ghost) {
 		return ghostIndices.getOrDefault(ghost, null);
 	}
+
+	public HashMap<GHOST, Integer> getGhostsPositions() {
+	    HashMap<GHOST, Integer> ghostsPositions = new HashMap<>();
+	    for (GHOST ghost : GHOST.values()) {
+	        ghostsPositions.put(ghost, getGhostIndex(ghost).value);
+        }
+        return ghostsPositions;
+    }
+
+    public EnumMap<GHOST, Constants.MOVE> getGhostsDirections() {
+	    return ghostDirections;
+    }
 
     @Override
     public Integer getLairIndex() {
@@ -700,16 +728,20 @@ public class BoardData implements IBoardData {
     }
 
     private HashSet<Integer> flooding(HashSet<Integer> pacmanInitialPositions, int steps,
-                                      boolean excludeGhostPositions, boolean excludeObservable) {
+                                      boolean excludeGhostPositions, boolean excludeObservable,
+									  HashMap<GHOST, Integer> ghostPositions) {
         if (excludeObservable && !excludeGhostPositions) {
             throw new NotImplementedException();
+        }
+        if (ghostPositions == null) {
+            ghostPositions = getGhostsPositions();
         }
         HashSet<Integer> newPositions = new HashSet<>();
         for (int i=0; i<steps; i++) {
             if (excludeGhostPositions) {
-                for (GHOST ghost : GHOST.values()) {
-                    LinkedList<Integer> ghostNeighborhood = getFreeNeighbors(getGhostIndex(ghost).value);
-                    ghostNeighborhood.add(getGhostIndex(ghost).value);
+                for (int ghostPosition : ghostPositions.values()) {
+                    LinkedList<Integer> ghostNeighborhood = getFreeNeighbors(ghostPosition);
+                    ghostNeighborhood.add(ghostPosition);
                     for (int neighbor : ghostNeighborhood) {
                         if (pacmanInitialPositions.contains(neighbor)) {
                             pacmanInitialPositions.remove(neighbor);
@@ -730,7 +762,7 @@ public class BoardData implements IBoardData {
             for (int position : pacmanInitialPositions) {
                 for (int neighbor : getFreeNeighbors(position)) {
                     if (!pacmanInitialPositions.contains(neighbor) &&
-                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor)) &&
+                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor, ghostPositions)) &&
                             (!excludeObservable || !isNodeObservableBySomeGhost(neighbor))) {
                         newPositions.add(neighbor);
                     }
@@ -738,7 +770,7 @@ public class BoardData implements IBoardData {
             }
             for (int neighbor : getFreeNeighbors(getPacmanIndex().value)) {
                     if (!pacmanInitialPositions.contains(neighbor) &&
-                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor)) &&
+                            (!excludeGhostPositions || !isGhostOrGhostsNeighbor(neighbor, ghostPositions)) &&
                             (!excludeObservable || !isNodeObservableBySomeGhost(neighbor))) {
                         newPositions.add(neighbor);
                     }
@@ -752,7 +784,7 @@ public class BoardData implements IBoardData {
      *  co może zrobić pacman po zjedzeniu potężnej pigułki */
 	@Override
     public HashSet<Integer> basicFlooding(HashSet<Integer> pacmanInitialPositions, int steps) {
-        return flooding(pacmanInitialPositions, steps, false, false);
+        return flooding(pacmanInitialPositions, steps, false, false, null);
     }
 
 	@Override
@@ -777,8 +809,13 @@ public class BoardData implements IBoardData {
     /** Zalewanie zatrzymujące się jeśli napotka duszka, do przewidywania,
      *  co może zrobić pacman gdy duszki go łapią */
     @Override
+    public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps, HashMap<GHOST, Integer> ghostPositions) {
+        return flooding(pacmanInitialPositions, steps, true, false, ghostPositions);
+    }
+
+    @Override
     public HashSet<Integer> floodingStoppedByGhost(HashSet<Integer> pacmanInitialPositions, int steps) {
-        return flooding(pacmanInitialPositions, steps, true, false);
+        return flooding(pacmanInitialPositions, steps, true, false, null);
     }
 
     @Override
@@ -800,10 +837,15 @@ public class BoardData implements IBoardData {
 
     /** Zalewanie z usuwaniem wszystkich pól, które widzi jakiś duszek */
     @Override
-    public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps) {
-        return flooding(pacmanInitialPositions, steps, true, true);
+    public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps, HashMap<GHOST, Integer> ghostPositions) {
+        return flooding(pacmanInitialPositions, steps, true, true, ghostPositions);
     }
 
+    @Override
+    public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions, int steps) {
+        return flooding(pacmanInitialPositions, steps, true, true, null);
+    }
+    
     @Override
     public HashSet<Integer> floodingWithDeletionOnSight(HashSet<Integer> pacmanInitialPositions) {
         return floodingWithDeletionOnSight(pacmanInitialPositions, 1);
