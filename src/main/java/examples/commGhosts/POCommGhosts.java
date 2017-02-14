@@ -1,5 +1,6 @@
 package examples.commGhosts;
 
+import entrants.BoardData;
 import pacman.controllers.IndividualGhostController;
 import pacman.controllers.MASController;
 import pacman.game.Constants;
@@ -8,7 +9,9 @@ import pacman.game.comms.BasicMessage;
 import pacman.game.comms.Message;
 import pacman.game.comms.Messenger;
 
+import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.LinkedList;
 import java.util.Random;
 
 
@@ -30,6 +33,7 @@ public class POCommGhosts extends MASController {
     }
 
 }
+
 
 class POCommGhost extends IndividualGhostController {
     private final static float CONSISTENCY = 0.9f;    //attack Ms Pac-Man with this probability
