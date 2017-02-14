@@ -134,6 +134,8 @@ public class BoardData implements IBoardData {
 	private final GHOST clientGhost;
 	private boolean messaging = false;
 	private SmartMessenger smartMessanger;
+	private List<Integer> clientIndicesHistory;
+	private int clientPosition;
 
 	private int exactNumberOfPowerpills;
 
@@ -185,6 +187,9 @@ public class BoardData implements IBoardData {
 		// inicjacja początkowymi pozycjami pacmana i duchów
 		initPositions();
 
+		// reset historii
+		clientIndicesHistory = new ArrayList<Integer>();
+		
 		if (messaging) {
 			smartMessanger = new SmartMessenger(clientGhost, game);
 		}
@@ -224,6 +229,7 @@ public class BoardData implements IBoardData {
 			indexTest();
 		}
 
+		updateClientPosition();
 		updatePills();
 		updatePowerPills();
 		updateGhosts();
@@ -235,8 +241,19 @@ public class BoardData implements IBoardData {
 			smartMessanger.update(game);
 			getAndProcessMessages();
 		}
+		
+		clientIndicesHistory.add(clientPosition);
 	}
-
+	
+	private void updateClientPosition() {
+		if (clientGhost == null) {
+			clientPosition = game.getPacmanCurrentNodeIndex();
+		}
+		else {
+			clientPosition = game.getGhostCurrentNodeIndex(clientGhost);
+		}
+	}
+	
 	private void updatePills() {
 		Iterator<Integer> it = pillIndices.iterator();
 		while (it.hasNext()) {
@@ -466,7 +483,7 @@ public class BoardData implements IBoardData {
     }
 
     /** Sprawdza, czy wydarzenie się przeterminowało. */
-	private boolean expired(int eventTime, int treshold) {
+	public boolean expired(int eventTime, int treshold) {
 		return game.getCurrentLevelTime() - eventTime > treshold;
 	}
 
@@ -963,6 +980,18 @@ public class BoardData implements IBoardData {
 	}
 
 
+	public Game getGame() {
+		return game;
+	}
+	
+	public GHOST getClientGhost() {
+		return clientGhost;
+	}
+	
+	public List<Integer> getClientIndicesHistory() {
+		return clientIndicesHistory;
+	}
+	
 	/** Zamienia w stringa informacje o grze i planszę. Duszki są oznaczone
 	 *  przez ich pierwsze litery, pacman i reszta planszy wg zmiennych wallChar itd. */
 	public String toString() {
