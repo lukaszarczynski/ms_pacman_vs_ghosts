@@ -214,6 +214,10 @@ class CatchingState extends State {
             }
         }
 
+        if (boardData.numberOfFloodedPositions() > 200) {
+            return new SearchingState(ghost);
+        }
+
         return this;
     }
 
@@ -233,6 +237,143 @@ class CatchingState extends State {
         int heading = headingMessage.get(0).getData();
         if (headingMessage.size() == 1 && powerpills.contains(heading)) {
             return new GuardingState(ghost, game, heading);
+        }
+
+        if (boardData.numberOfFloodedPositions() > 200) {
+            return new CatchingState(ghost);
+        }
+
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "CatchingState";
+    }
+}
+
+class SearchingState extends State {
+    private static final int TICK_THRESHOLD = 50;
+    private static final float CONSISTENCY = 0.9f;
+    private static final int NONE_PILL_GUARDED_MAX_TIME = 5;
+    private static final int MIN_LEVEL_TIME = 70;
+
+    private Constants.GHOST ghost;
+    private Random rand = new Random();
+    private int lastPacmanIndex = -1;
+    private int tickSeen = -1;
+    private int nonePillGuardedTime = 0;
+
+    SearchingState(Constants.GHOST ghost)
+    {
+        this.ghost = ghost;
+    }
+
+    @Override
+    public Constants.MOVE getMove(Game game, BoardData boardData) {
+        Boolean requiresAction = game.doesGhostRequireAction(ghost);
+
+        int currentTick = game.getCurrentLevelTime();
+        if (currentTick <= 2 || currentTick - tickSeen >= TICK_THRESHOLD) {
+            lastPacmanIndex = -1;
+            tickSeen = -1;
+        }
+
+        int pacmanIndex = game.getPacmanCurrentNodeIndex();
+
+        if (pacmanIndex == -1 && game.getMessenger() != null) {
+            for (Message message : boardData.getSmartMessenger().getCurrentMessages()) {
+                if (message.getType() == BasicMessage.MessageType.PACMAN_SEEN) {
+                    if (message.getTick() > tickSeen && message.getTick() < currentTick) { // Only if it is newer information
+                        lastPacmanIndex = message.getData();
+                        tickSeen = message.getTick();
+                    }
+                }
+            }
+            pacmanIndex = lastPacmanIndex;
+        }
+
+        if (requiresAction != null && requiresAction)
+        {
+            if (pacmanIndex != -1) {
+                {
+                    if (rand.nextFloat() < CONSISTENCY) {            //attack Ms Pac-Man otherwise (with certain probability)
+                        try {
+                            Constants.MOVE move = game.getApproximateNextMoveTowardsTarget(game.getGhostCurrentNodeIndex(ghost),
+                                    pacmanIndex, game.getGhostLastMoveMade(ghost), Constants.DM.PATH);
+                            return move;
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                            System.out.println(e);
+                        }
+                    }
+                }
+            } else {
+                Constants.MOVE[] possibleMoves = game.getPossibleMoves(game.getGhostCurrentNodeIndex(ghost), game.getGhostLastMoveMade(ghost));
+                return possibleMoves[rand.nextInt(possibleMoves.length)];
+            }
+        }
+        return Constants.MOVE.NEUTRAL;
+    }
+
+    @Override
+    public State transitionFunction(Game game, BoardData boardData, HashMap<Constants.GHOST, State> ghostStates) {
+        if (game.wasPowerPillEaten() && game.getGhostCurrentNodeIndex(ghost) != boardData.getLairIndex()){
+            return new RetreatState(ghost, game);
+        }
+
+        if (game.getGhostCurrentNodeIndex(ghost) != boardData.getLairIndex()) {
+            boolean pillGuarded = false;
+            for (State state : ghostStates.values()) {
+                if (state instanceof GuardingState) {
+                    pillGuarded = true;
+                }
+            }
+            if (!pillGuarded && game.getCurrentLevelTime() > MIN_LEVEL_TIME) {
+                nonePillGuardedTime++;
+            } else {
+                nonePillGuardedTime = 0;
+            }
+            int myPosition = game.getGhostCurrentNodeIndex(this.ghost);
+            Constants.MOVE lastMove = game.getGhostLastMoveMade(this.ghost);
+            if (boardData.getExactNumberOfPowerpills() > 0 && nonePillGuardedTime > NONE_PILL_GUARDED_MAX_TIME &&
+                    game.getCurrentLevelTime() > MIN_LEVEL_TIME) {
+                int selectedPowerpill = boardData.getPowerpillWithShortestCycle(myPosition, lastMove);
+                if (Objects.equals(boardData.getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(myPosition),
+                        boardData.getDistanceToPowerpillWithShortestCycleNearestToSomeGhost())) {
+                    boardData.getSmartMessenger().broadcastMessageIAmHeading(selectedPowerpill);
+                    System.out.println(String.format("Go to superpill %d", selectedPowerpill));
+                    return new GuardingState(ghost, game, selectedPowerpill);
+                }
+            }
+        }
+
+        if (boardData.numberOfFloodedPositions() < 20) {
+            return new CatchingState(ghost);
+        }
+
+        return this;
+    }
+
+    @Override
+    public State transitionFunction(Game game, BoardData boardData,
+                                    HashMap<Constants.GHOST, State> ghostStates, Constants.GHOST anotherGhost) {
+        if (game.wasPowerPillEaten()){
+            return new RetreatState(ghost, game);
+        }
+
+        LinkedList<Integer> powerpills = boardData.getRemainingPowerPillsIndices();
+        MessageList headingMessage = boardData.getSmartMessenger().getCurrentMessages().
+                selectType(Message.MessageType.I_AM_HEADING).selectSender(anotherGhost);
+        if (headingMessage.size() != 1) {
+            return this;
+        }
+        int heading = headingMessage.get(0).getData();
+        if (headingMessage.size() == 1 && powerpills.contains(heading)) {
+            return new GuardingState(ghost, game, heading);
+        }
+
+        if (boardData.numberOfFloodedPositions() < 20) {
+            return new CatchingState(ghost);
         }
 
         return this;

@@ -88,6 +88,8 @@ interface IBoardData {
 	/** Funkcja oceny w stanie CatchingState */
 	public int numberOfFloodedPositions(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
                                         int depthInTree);
+	public int numberOfFloodedPositions(HashSet<Integer> floodedPositios);
+	public int numberOfFloodedPositions();
 }
 
 
@@ -883,6 +885,16 @@ public class BoardData implements IBoardData {
         numberOfFloodedPositions = initialNumberOfFloodedPositions +
                 (numberOfFloodedPositions - initialNumberOfFloodedPositions) / depthInTree;
         return numberOfFloodedPositions;
+    }
+
+    @Override
+    public int numberOfFloodedPositions(HashSet<Integer> floodedPositios) {
+        return numberOfFloodedPositions(floodedPositios, 0, 1);
+    }
+
+    @Override
+    public int numberOfFloodedPositions() {
+        return numberOfFloodedPositions(possiblePacmanPositions);
     }
 
     private boolean compareIndexCoords(int index, int x, int y) {
