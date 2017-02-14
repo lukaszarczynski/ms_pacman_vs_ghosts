@@ -6,7 +6,6 @@ import pacman.game.Constants.GHOST;
 import pacman.game.Constants.MOVE;
 import pacman.game.Game;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -15,18 +14,12 @@ import entrants.BoardData;
 public class NotQuiteIntelligentPacMan extends PacmanController {
     private Random random = new Random();
     private BoardData boardData = new BoardData(null, false);
-    private List<Integer> tabuList = new ArrayList<Integer>();
     private int tabuLimit = 100;
 
     @Override
-    public MOVE getMove(Game game, long timeDue) {
-    	if (game.getCurrentLevelTime() == 0) {
-    		tabuList = new ArrayList<Integer>();
-    	}
-    	
+    public MOVE getMove(Game game, long timeDue) {    	
     	boardData.update(game);
     	int currentPacmanIndex = game.getPacmanCurrentNodeIndex();
-    	tabuList.add(currentPacmanIndex);
     	
         MOVE bestMove = null;
         double bestScore = Double.NEGATIVE_INFINITY;
@@ -49,6 +42,8 @@ public class NotQuiteIntelligentPacMan extends PacmanController {
     		
     		// nagroda za zbliżanie się do jakiejś pigułki
     		int closestPillIndex = game.getClosestNodeIndexFromNodeIndex(newIndex, allPillsArray(), DM.PATH);
+//    		System.out.format("etap %d. najbliższa pigułka %d %d %s\n", game.getCurrentLevel(), newIndex, closestPillIndex, 
+//    				Arrays.toString(allPillsArray()));
     		int distanceToPill = game.getShortestPathDistance(newIndex, closestPillIndex);
     		score -= distanceToPill;
     		
@@ -69,6 +64,7 @@ public class NotQuiteIntelligentPacMan extends PacmanController {
     		}
     		
     		// kara za łażenie po odwiedzonych niedawno polach
+        	List<Integer> tabuList = boardData.getClientIndicesHistory();
     		for (int i = 0; i < tabuList.size() && i < tabuLimit; ++i) {
     			int oldIndex = tabuList.get(tabuList.size() - 1 - i);
     			if (newIndex == oldIndex) {
