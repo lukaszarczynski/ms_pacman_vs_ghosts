@@ -225,7 +225,8 @@ public class BoardData implements IBoardData {
 	 *  każdego przebiegu funkcji getMove. */
 	public void update(Game game) {
 		this.game = game;
-		if (level < game.getCurrentLevel()) {
+		// sprawdź, czy rozpoczęliśmy nową grę/planszę - NIE ZMIENIAĆ PONIŻSZEGO WARUNKU!!
+		if (game.getCurrentLevelTime() == 0) {
 			initBoard();
 			initNodeBoard();
 			indexTest();
