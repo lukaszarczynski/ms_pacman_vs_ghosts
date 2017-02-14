@@ -12,6 +12,8 @@ import pacman.game.internal.Maze;
 import pacman.game.internal.Node;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
+import static java.lang.Math.sqrt;
+
 
 enum PROBABILITY {
     UNIFORM,
@@ -81,11 +83,13 @@ interface IBoardData {
 	public double unnormalizedProbabilityOfPacmanAtPosition(HashSet<Integer> positions, int initialPosition,
                                                             int position, int floodingTime);
 	public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
-                                                           int initialPosition, int floodingTime);
+                                                           int initialPosition, int floodingTime, int myPosition);
 	public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
                                                            int initialPosition, int floodingTime);
 	public double retreatStateEvaluationFunction(HashSet<Integer> positions, int index,
                                                            int initialPosition, int floodingTime);
+	public double searchingStateEvaluationFunction(HashSet<Integer> positions, int index,
+                                                                   int initialPosition, int floodingTime);
 	public HashSet<Integer> positionsVisibleFromIndex(int index);
 
 	/** Funkcja oceny w stanie CatchingState */
@@ -474,9 +478,6 @@ public class BoardData implements IBoardData {
 	}
 
 
-
-
-
 	public void setPacmanIndex(int index) {
 		setPacmanIndex(index, game.getCurrentLevelTime());
 	}
@@ -839,7 +840,7 @@ public class BoardData implements IBoardData {
     /** Prawdopodobieństwo znalezienia pacmana na którejś pozycji z selectedPositions */
     @Override
     public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
-                                                           int initialPosition, int floodingTime) {
+                                                           int initialPosition, int floodingTime, int myPosition) {
         double unnormalizedProbability = 0;
         double normalizationDivident = 0;
         if (PROBABILITY_IN_USE == PROBABILITY.UNIFORM) {
@@ -852,18 +853,17 @@ public class BoardData implements IBoardData {
         }
         for (int position : selectedPositions) {
             unnormalizedProbability += unnormalizedProbabilityOfPacmanAtPosition(positions, initialPosition,
-                    position, floodingTime);
+                    position, floodingTime) / (sqrt(game.getManhattanDistance(position, myPosition)) + 1.);
         }
         return unnormalizedProbability / normalizationDivident;
     }
 
-    /** Funkcja oceny w stanie Searching (maksymalizujemy) */
     @Override
     public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
                                                                    int initialPosition, int floodingTime) {
         HashSet<Integer> positionsVisibleFromIndex = positionsVisibleFromIndex(index);
         return normalizedProbabilityOfSelectedPositions(positions, positionsVisibleFromIndex,
-                initialPosition, floodingTime);
+                initialPosition, floodingTime, index);
     }
 
     /** Funkcja oceny w stanie Retreat (maksymalizujemy) */
@@ -875,6 +875,19 @@ public class BoardData implements IBoardData {
            TODO: jeśli zje pigułkę wnioskowanie, która to była,
            TODO: być może zalewanie, aż nie będzie 0,
            TODO: być może liczenie zalanych przed zjedzeniem pigułki jeśli jest 0
+          */
+    }
+
+    /** Funkcja oceny w stanie Searching (maksymalizujemy) */
+    @Override
+    public double searchingStateEvaluationFunction(HashSet<Integer> positions, int index,
+                                                                   int initialPosition, int floodingTime) {
+        return normalizedProbabilityOfPositionsVisibleFromIndex(positions, index, initialPosition, floodingTime);
+        /* TODO: zwracanie uwagi na odległość,
+           TODO: być może zalewanie, aż nie będzie 0
+           TODO: Jaki tu chcemy rodzaj zalewania? Może połączenie dwóch?
+
+           TODO: FUNKCJA POWINNA ZWRACAĆ PRAWD. ELEMENTÓW USUNIĘTYCH PRZEZ ZOBACZENIE
           */
     }
 

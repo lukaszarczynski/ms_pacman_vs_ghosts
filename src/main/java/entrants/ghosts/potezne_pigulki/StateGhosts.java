@@ -260,44 +260,30 @@ class SearchingState extends State {
     public Constants.MOVE getMove(Game game, BoardData boardData) {
         Boolean requiresAction = game.doesGhostRequireAction(ghost);
 
-        int currentTick = game.getCurrentLevelTime();
-        if (currentTick <= 2 || currentTick - tickSeen >= TICK_THRESHOLD) {
-            lastPacmanIndex = -1;
-            tickSeen = -1;
-        }
-
-        int pacmanIndex = game.getPacmanCurrentNodeIndex();
-
-        if (pacmanIndex == -1 && game.getMessenger() != null) {
-            for (Message message : boardData.getSmartMessenger().getCurrentMessages()) {
-                if (message.getType() == BasicMessage.MessageType.PACMAN_SEEN) {
-                    if (message.getTick() > tickSeen && message.getTick() < currentTick) { // Only if it is newer information
-                        lastPacmanIndex = message.getData();
-                        tickSeen = message.getTick();
-                    }
-                }
-            }
-            pacmanIndex = lastPacmanIndex;
-        }
-
         if (requiresAction != null && requiresAction)
         {
-            if (pacmanIndex != -1) {
-                {
-                    if (rand.nextFloat() < CONSISTENCY) {            //attack Ms Pac-Man otherwise (with certain probability)
-                        try {
-                            Constants.MOVE move = game.getApproximateNextMoveTowardsTarget(game.getGhostCurrentNodeIndex(ghost),
-                                    pacmanIndex, game.getGhostLastMoveMade(ghost), Constants.DM.PATH);
-                            return move;
-                        } catch (ArrayIndexOutOfBoundsException e) {
-                            System.out.println(e);
-                        }
-                    }
+            Constants.MOVE bestMove = null;
+            double bestScore = Double.NEGATIVE_INFINITY;
+
+            int currentGhostIndex = game.getGhostCurrentNodeIndex(ghost);
+            int lastSeenPacmanPosition = boardData.getPacmanIndexValue();
+            Constants.MOVE lastMove = game.getGhostLastMoveMade(ghost);
+
+            for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
+                int myNewPosition = game.getNeighbour(currentGhostIndex, move);
+                int newFloodingTime = boardData.getFloodingTime() + 1;
+                HashSet<Integer> newFloodedPositions = new HashSet<>(boardData.getPossiblePacmanPositions());
+                newFloodedPositions = boardData.basicFlooding(newFloodedPositions);
+
+                double score = boardData.searchingStateEvaluationFunction(newFloodedPositions, myNewPosition,
+                        lastSeenPacmanPosition, newFloodingTime);
+
+                if (score > bestScore) {
+                    bestMove = move;
+                    bestScore = score;
                 }
-            } else {
-                Constants.MOVE[] possibleMoves = game.getPossibleMoves(game.getGhostCurrentNodeIndex(ghost), game.getGhostLastMoveMade(ghost));
-                return possibleMoves[rand.nextInt(possibleMoves.length)];
             }
+            return bestMove;
         }
         return Constants.MOVE.NEUTRAL;
     }
