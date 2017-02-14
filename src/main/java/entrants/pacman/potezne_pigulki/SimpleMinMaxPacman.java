@@ -14,7 +14,7 @@ public class SimpleMinMaxPacman extends PacmanController {
 	@Override
 	public MOVE getMove(Game game, long timeDue) {
 		boardData.update(game);
-		int depth = 9;
+		int depth = 7;
 		
         SimpleMinMax smm = new SimpleMinMax();
         MOVE myMinMaxMove = smm.bestMove(boardData, depth);
