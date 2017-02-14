@@ -26,7 +26,7 @@ abstract class State {
     public Constants.MOVE Handle(GhostContext context, Constants.GHOST ghost, Game game, BoardData boardData,
                                  HashMap<Constants.GHOST, State> ghostStates, long timeDue) {
         State stateAfterTransition = transitionFunction(game, boardData, ghostStates);
-        if (stateAfterTransition != this) {
+        if (stateAfterTransition != context.state) {
             context.state = stateAfterTransition;
             ghostStates.put(ghost, stateAfterTransition);
             return null;
@@ -42,9 +42,6 @@ class RetreatState extends State {
     private Constants.GHOST ghost;
     private Integer startTime;
     private Integer maxDuration;
-    private Random rand = new Random();
-    private int lastPacmanIndex = -1;
-    private int tickSeen = -1;
 
     RetreatState(Constants.GHOST ghost, Game game)
     {
@@ -57,40 +54,30 @@ class RetreatState extends State {
     public Constants.MOVE getMove(Game game, BoardData boardData) {
         Boolean requiresAction = game.doesGhostRequireAction(ghost);
 
-        int currentTick = game.getCurrentLevelTime();
-        if (currentTick <= 2 || currentTick - tickSeen >= TICK_THRESHOLD) {
-            lastPacmanIndex = -1;
-            tickSeen = -1;
-        }
-
-        int pacmanIndex = game.getPacmanCurrentNodeIndex();
-
-        if (pacmanIndex == -1 && game.getMessenger() != null) {
-            for (Message message : boardData.getSmartMessenger().getCurrentMessages()) {
-                if (message.getType() == BasicMessage.MessageType.PACMAN_SEEN) {
-                    if (message.getTick() > tickSeen && message.getTick() < currentTick) {
-                        lastPacmanIndex = message.getData();
-                        tickSeen = message.getTick();
-                    }
-                }
-            }
-            pacmanIndex = lastPacmanIndex;
-        }
-
         if (requiresAction != null && requiresAction)
         {
-            if (pacmanIndex != -1) {
-                try {
-                    return game.getApproximateNextMoveAwayFromTarget(game.getGhostCurrentNodeIndex(ghost),
-                            game.getPacmanCurrentNodeIndex(), game.getGhostLastMoveMade(ghost), Constants.DM.PATH);
-                } catch (ArrayIndexOutOfBoundsException e) {
-                    System.out.println(e);
+            Constants.MOVE bestMove = null;
+            double bestScore = Double.NEGATIVE_INFINITY;
+
+            int currentGhostIndex = game.getGhostCurrentNodeIndex(ghost);
+            int lastSeenPacmanPosition = boardData.getPacmanIndexValue();
+            Constants.MOVE lastMove = game.getGhostLastMoveMade(ghost);
+
+            for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
+                int myNewPosition = game.getNeighbour(currentGhostIndex, move);
+                int newFloodingTime = boardData.getFloodingTime() + 1;
+                HashSet<Integer> newFloodedPositions = new HashSet<>(boardData.getPossiblePacmanPositions());
+                newFloodedPositions = boardData.basicFlooding(newFloodedPositions);
+
+                double score = boardData.retreatStateEvaluationFunction(newFloodedPositions, myNewPosition,
+                        lastSeenPacmanPosition, newFloodingTime);
+
+                if (score > bestScore) {
+                    bestMove = move;
+                    bestScore = score;
                 }
-            } else {
-                Constants.MOVE[] possibleMoves = game.getPossibleMoves(
-                        game.getGhostCurrentNodeIndex(ghost), game.getGhostLastMoveMade(ghost));
-                return possibleMoves[rand.nextInt(possibleMoves.length)];
             }
+            return bestMove;
         }
         return Constants.MOVE.NEUTRAL;
     }
@@ -458,7 +445,7 @@ class GuardingState extends State {
 
     @Override
     public String toString() {
-        return "GuardingState";
+        return "SearchingState";
     }
 }
 
@@ -472,6 +459,21 @@ class GhostContext extends IndividualGhostController {
         super(ghost);
         ghostStates = new HashMap<>();
         boardData = new BoardData(ghost, true);
+    }
+
+    private void updateAnotherGhostsStates(Game game) {
+        for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
+            if (anotherGhost == ghost) {
+                State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(
+                        game, boardData, ghostStates);
+                ghostStates.put(ghost, stateAfterTransition);
+                state = stateAfterTransition;
+            } else {
+                State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(
+                        game, boardData, ghostStates, anotherGhost);
+                ghostStates.put(anotherGhost, stateAfterTransition);
+            }
+        }
     }
 
     @Override
@@ -495,18 +497,7 @@ class GhostContext extends IndividualGhostController {
             }
         }
 
-        for (Constants.GHOST anotherGhost : Constants.GHOST.values()) {
-            if (anotherGhost == ghost) {
-                State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(
-                        game, boardData, ghostStates);
-                ghostStates.put(ghost, stateAfterTransition);
-                state = stateAfterTransition;
-            } else {
-                State stateAfterTransition = ghostStates.get(anotherGhost).transitionFunction(
-                        game, boardData, ghostStates, anotherGhost);
-                ghostStates.put(anotherGhost, stateAfterTransition);
-            }
-        }
+        updateAnotherGhostsStates(game);
 
         Constants.MOVE move = null;
         while (move == null) {

@@ -44,6 +44,7 @@ interface IBoardData {
 	public void setPacmanIndex(int index);
 	public void setPacmanIndex(int index, int time);
 	public DataTime getPacmanIndex();
+	public int getPacmanIndexValue();
 	public void setGhostIndex(GHOST ghost, int index);
 	public void setGhostIndex(GHOST ghost, int index, int time);
 	public void removePowerpill(GHOST ghost);
@@ -82,6 +83,8 @@ interface IBoardData {
 	public double normalizedProbabilityOfSelectedPositions(HashSet<Integer> positions, HashSet<Integer> selectedPositions,
                                                            int initialPosition, int floodingTime);
 	public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
+                                                           int initialPosition, int floodingTime);
+	public double retreatStateEvaluationFunction(HashSet<Integer> positions, int index,
                                                            int initialPosition, int floodingTime);
 	public HashSet<Integer> positionsVisibleFromIndex(int index);
 
@@ -486,6 +489,11 @@ public class BoardData implements IBoardData {
 		return pacmanIndex;
 	}
 
+	@Override
+    public int getPacmanIndexValue() {
+		return pacmanIndex.value;
+	}
+
 	public void setGhostIndex(GHOST ghost, int index) {
 		setGhostIndex(ghost, index, game.getCurrentLevelTime());
 	}
@@ -849,13 +857,25 @@ public class BoardData implements IBoardData {
         return unnormalizedProbability / normalizationDivident;
     }
 
-    /** Funkcja oceny w stanach Searching (maksymalizujemy) i Retreat (minimalizujemy) */
+    /** Funkcja oceny w stanie Searching (maksymalizujemy) */
     @Override
     public double normalizedProbabilityOfPositionsVisibleFromIndex(HashSet<Integer> positions, int index,
                                                                    int initialPosition, int floodingTime) {
         HashSet<Integer> positionsVisibleFromIndex = positionsVisibleFromIndex(index);
         return normalizedProbabilityOfSelectedPositions(positions, positionsVisibleFromIndex,
                 initialPosition, floodingTime);
+    }
+
+    /** Funkcja oceny w stanie Retreat (maksymalizujemy) */
+    @Override
+    public double retreatStateEvaluationFunction(HashSet<Integer> positions, int index,
+                                                                   int initialPosition, int floodingTime) {
+        return -1.0 * normalizedProbabilityOfPositionsVisibleFromIndex(positions, index, initialPosition, floodingTime);
+        /* TODO: zwracanie uwagi na odległość,
+           TODO: jeśli zje pigułkę wnioskowanie, która to była,
+           TODO: być może zalewanie, aż nie będzie 0,
+           TODO: być może liczenie zalanych przed zjedzeniem pigułki jeśli jest 0
+          */
     }
 
     @Override
