@@ -303,6 +303,14 @@ class CatchingStateGameTree {
             }
         }
     }
+
+    void DeepSearch(DefaultMutableTreeNode node, int iterationDepth, int numberOfIterations) {
+        searchToGivenDepth(node, iterationDepth);
+        for (int i = 0; i < numberOfIterations; i++) {
+            DefaultMutableTreeNode bestLeaf = getBestLeaf();
+            searchToGivenDepth(bestLeaf, iterationDepth);
+        }
+    }
 }
 
 class CatchingStateNodeData {
@@ -417,6 +425,8 @@ class CatchingState extends State {
 //            gameTree.createChildren((DefaultMutableTreeNode) (gameTree.tree.getRoot()));
 
             gameTree.searchToGivenDepth((DefaultMutableTreeNode) (gameTree.tree.getRoot()), 25);
+
+//            gameTree.DeepSearch((DefaultMutableTreeNode) (gameTree.tree.getRoot()), 25, 3);
 
             double bestLeafScore = gameTree.getBestLeafScore();
 
