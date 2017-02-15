@@ -15,6 +15,6 @@ public class Main {
 
         Executor executor = new Executor(true, true);
 
-        executor.runGame(new NotQuiteIntelligentPacMan(), new StateGhosts(), true, 40);
+        executor.runGame(new NotQuiteIntelligentPacMan(), new StateGhosts(), true, 0);
     }
 }

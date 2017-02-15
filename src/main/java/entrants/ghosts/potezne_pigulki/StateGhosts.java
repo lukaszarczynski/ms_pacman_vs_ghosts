@@ -6,9 +6,11 @@ import pacman.controllers.IndividualGhostController;
 import pacman.controllers.MASController;
 import pacman.game.Constants;
 import pacman.game.Game;
-import pacman.game.comms.BasicMessage;
 import pacman.game.comms.Message;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
 import java.util.*;
 
 abstract class State {
@@ -133,21 +135,249 @@ class RetreatState extends State {
     }
 }
 
+class CatchingStateGameTree {
+    DefaultTreeModel tree;
+
+    private Game game;
+    private BoardData boardData;
+    private Constants.GHOST currentGhost;
+    private int lastSeenPacmanPosition;
+    private double initialNumberOfFloodedPositions;
+
+    private HashSet<DefaultMutableTreeNode> leafs = new HashSet<>();
+
+    CatchingStateGameTree(Game game, BoardData boardData, Constants.GHOST currentGhost, int lastSeenPacmanPosition,
+                          HashMap<Constants.GHOST, Integer> currentGhostPositions,
+                          EnumMap<Constants.GHOST, Constants.MOVE> ghostLastMoves,
+                          HashSet<Integer> floodedPositions) {
+        this.game = game;
+        this.boardData = boardData;
+        this.currentGhost = currentGhost;
+        this.lastSeenPacmanPosition = lastSeenPacmanPosition;
+        initialNumberOfFloodedPositions = boardData.numberOfFloodedPositions();
+        DefaultMutableTreeNode root = createRoot(currentGhostPositions, ghostLastMoves, floodedPositions);
+        tree = new DefaultTreeModel(root);
+        leafs.add(root);
+    }
+
+    CatchingStateGameTree(Game game, BoardData boardData, Constants.GHOST currentGhost, int lastSeenPacmanPosition) {
+        this.game = game;
+        this.boardData = boardData;
+        this.currentGhost = currentGhost;
+        this.lastSeenPacmanPosition = lastSeenPacmanPosition;
+        DefaultMutableTreeNode root = createRoot();
+        tree = new DefaultTreeModel(root);
+        leafs.add(root);
+    }
+
+    private DefaultMutableTreeNode createRoot() {
+        HashMap<Constants.GHOST, Integer> currentGhostPositions = boardData.getGhostsPositions();
+        EnumMap<Constants.GHOST, Constants.MOVE> ghostLastMoves = boardData.getGhostsDirections();
+        HashSet<Integer> floodedPositions = boardData.getPossiblePacmanPositions();
+        return new DefaultMutableTreeNode(new CatchingStateNodeData(0, currentGhost,
+                currentGhostPositions, ghostLastMoves, floodedPositions));
+    }
+
+    private DefaultMutableTreeNode createRoot(HashMap<Constants.GHOST, Integer> currentGhostPositions,
+                                              EnumMap<Constants.GHOST, Constants.MOVE> ghostLastMoves,
+                                              HashSet<Integer> floodedPositions) {
+        return new DefaultMutableTreeNode(new CatchingStateNodeData(0, currentGhost,
+                currentGhostPositions, ghostLastMoves, floodedPositions));
+    }
+
+    private DefaultMutableTreeNode getBestLeaf() {
+        DefaultMutableTreeNode bestLeaf = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        for (DefaultMutableTreeNode leaf : leafs) {
+            double score = ((CatchingStateNodeData)(leaf.getUserObject())).score;
+            if (score > bestScore) {
+                bestLeaf = leaf;
+                bestScore = score;
+            }
+        }
+        return bestLeaf;
+    }
+
+    double getBestLeafScore() {
+        return ((CatchingStateNodeData)(getBestLeaf().getUserObject())).score;
+    }
+
+    Constants.MOVE getBestLeafDirection() {
+        return ((CatchingStateNodeData)(getBestLeaf().getUserObject())).moveFromParent();
+    }
+
+    void createChildren(DefaultMutableTreeNode node) {
+        if (node.isLeaf()) {
+            Constants.MOVE ghostMove;
+            int ghostPosition;
+
+            CatchingStateNodeData parentData = (CatchingStateNodeData)(node.getUserObject());
+            for (Constants.MOVE direction : game.getPossibleMoves(parentData.myPosition(), parentData.moveFromParent())) {
+
+                EnumMap<Constants.GHOST, Constants.MOVE> childGhostLastMoves =
+                        new EnumMap<>(Constants.GHOST.class);
+                HashMap<Constants.GHOST, Integer> childGhostPositions = new HashMap<>();
+
+                ghostPosition = game.getNeighbour(parentData.currentGhostPositions.get(currentGhost), direction);
+                childGhostLastMoves.put(currentGhost, direction);
+                childGhostPositions.put(currentGhost, ghostPosition);
+
+                for (Constants.GHOST ghost : Constants.GHOST.values()) {
+                    if (ghost == currentGhost) {
+                        ghostMove = direction;
+                    } else {
+                        ghostMove = getApproximateGhostMove(parentData.currentGhostPositions.get(ghost),
+                                parentData.ghostLastMoves.get(ghost), ghost,
+                                parentData.currentGhostPositions, parentData.ghostLastMoves, parentData.floodedPositions,
+                                childGhostLastMoves.get(currentGhost), childGhostPositions.get(currentGhost));
+                    }
+
+                    if (parentData.ghostLastMoves.get(ghost) == Constants.MOVE.NEUTRAL) {
+                        ghostPosition = parentData.currentGhostPositions.get(ghost);
+                    } else {
+                        ghostPosition = game.getNeighbour(parentData.currentGhostPositions.get(ghost), ghostMove);
+                    }
+
+                    childGhostLastMoves.put(ghost, ghostMove);
+                    childGhostPositions.put(ghost, ghostPosition);
+                }
+                CatchingStateNodeData childData = new CatchingStateNodeData(parentData.depth + 1, currentGhost,
+                        childGhostPositions, childGhostLastMoves, parentData.floodedPositions);
+
+                childData.floodedPositions = oneStepFlooding(childData, parentData);
+
+                childData.score = evaluate(childData);
+
+                DefaultMutableTreeNode child = new DefaultMutableTreeNode(childData);
+                node.add(child);
+                leafs.add(child);
+            }
+            leafs.remove(node);
+        }
+    }
+
+    private Constants.MOVE getApproximateGhostMove(int previousGhostPosition, Constants.MOVE previousGhostMove,
+                                                   Constants.GHOST ghost,
+                                                   HashMap<Constants.GHOST, Integer> currentGhostPositions,
+                                                   EnumMap<Constants.GHOST, Constants.MOVE> ghostLastMoves,
+                                                   HashSet<Integer> floodedPositions,
+                                                   Constants.MOVE callerDirection, Integer callerPosition) {
+        if (previousGhostMove == Constants.MOVE.NEUTRAL) {
+            return Constants.MOVE.NEUTRAL;
+        }
+
+        HashMap<Constants.GHOST, Integer> ghostPositions = new HashMap<>(currentGhostPositions);
+        EnumMap<Constants.GHOST, Constants.MOVE> ghostMoves = new EnumMap<>(ghostLastMoves);
+        ghostPositions.put(currentGhost, callerPosition);
+        ghostMoves.put(currentGhost, callerDirection);
+
+        int[] possibleMoves = game.getNeighbouringNodes(previousGhostPosition, previousGhostMove);
+        if (possibleMoves.length == 1) {
+            return game.getMoveToMakeToReachDirectNeighbour(previousGhostPosition, possibleMoves[0]);
+        }
+        else {
+            CatchingStateGameTree tempTree = new CatchingStateGameTree(game, boardData, ghost, lastSeenPacmanPosition,
+                    ghostPositions, ghostMoves, floodedPositions);
+            tempTree.createChildren((DefaultMutableTreeNode) (tempTree.tree.getRoot()));
+            Constants.MOVE bestAnotherGhostMove = tempTree.getBestLeafDirection();
+            return bestAnotherGhostMove;
+        }
+    }
+
+    private HashSet<Integer> oneStepFlooding(CatchingStateNodeData childData, CatchingStateNodeData parentData) {
+        return boardData.floodingStoppedByGhost(parentData.floodedPositions, 1, childData.currentGhostPositions);
+    }
+
+
+    private double evaluate(CatchingStateNodeData childData) {
+        return boardData.catchingStateEvaluationFunction(childData.floodedPositions,
+                initialNumberOfFloodedPositions, childData.depth,
+                lastSeenPacmanPosition, childData.myPosition());
+    }
+
+}
+
+class CatchingStateNodeData {
+    private Constants.GHOST currentGhost;
+    Double score = Double.NEGATIVE_INFINITY;
+    HashMap<Constants.GHOST, Integer> currentGhostPositions;
+    EnumMap<Constants.GHOST, Constants.MOVE> ghostLastMoves;
+    Integer depth;
+    HashSet<Integer> floodedPositions;
+
+    Integer myPosition() {
+        return currentGhostPositions.get(currentGhost);
+    }
+
+    Constants.MOVE moveFromParent() {
+        return ghostLastMoves.get(currentGhost);
+    }
+
+
+    CatchingStateNodeData(Integer depth, Constants.GHOST currentGhost,
+                          HashMap<Constants.GHOST, Integer> currentGhostPositions,
+                          EnumMap<Constants.GHOST, Constants.MOVE> ghostLastMoves,
+                          HashSet<Integer> floodedPositions) {
+        this.depth = depth;
+        this.currentGhost = currentGhost;
+        this.currentGhostPositions = currentGhostPositions;
+        this.ghostLastMoves = ghostLastMoves;
+        this.floodedPositions = floodedPositions;
+    }
+}
+
 class CatchingState extends State {
-    private static final int TICK_THRESHOLD = 50;
-    private static final float CONSISTENCY = 0.9f;
     private static final int NONE_PILL_GUARDED_MAX_TIME = 5;
     private static final int MIN_LEVEL_TIME = 50;
 
     private Constants.GHOST ghost;
-    private Random rand = new Random();
-    private int lastPacmanIndex = -1;
-    private int tickSeen = -1;
     private int nonePillGuardedTime = 0;
 
     CatchingState(Constants.GHOST ghost)
     {
         this.ghost = ghost;
+    }
+
+    public static Constants.MOVE getBestMoveWithIteratedFlooding(
+            Game game, BoardData boardData, Constants.GHOST ghost, int lastSeenPacmanPosition,
+            Constants.MOVE lastMove, HashMap<Constants.GHOST, Integer> currentGhostPositions,
+            HashMap<Constants.MOVE, HashSet<Integer>> newFloodedPositions,
+            int maxNumberOfIterations) {
+        boolean allScoresEqual = true;
+        Constants.MOVE bestMove = null;
+        double bestScore;
+        int initialNumberOfFloodedPositions;
+        for (int i = 0; i < maxNumberOfIterations && allScoresEqual; i++) {
+            allScoresEqual = true;
+            HashSet<Double> scores = new HashSet<>();
+            bestMove = Constants.MOVE.NEUTRAL;
+            bestScore = Double.NEGATIVE_INFINITY;
+            initialNumberOfFloodedPositions = boardData.numberOfFloodedPositions();
+            // TODO: boardData.numberOfFloodedPositions() zamienić na liczbę zalanych w rodzicu
+
+            for (Constants.MOVE move : game.getPossibleMoves(currentGhostPositions.get(ghost), lastMove)) {
+                HashMap<Constants.GHOST, Integer> ghostPositions = boardData.getGhostsPositions();
+                int myNewPosition = game.getNeighbour(currentGhostPositions.get(ghost), move);
+                ghostPositions.put(ghost, myNewPosition);
+
+                newFloodedPositions.put(move, boardData.floodingStoppedByGhost(newFloodedPositions.get(move),
+                        1, ghostPositions));
+
+                double score = boardData.catchingStateEvaluationFunction(newFloodedPositions.get(move),
+                        initialNumberOfFloodedPositions, i, lastSeenPacmanPosition, myNewPosition);
+
+                scores.add(score);
+                if (scores.size() > 1) {
+                    allScoresEqual = false;
+                }
+
+                if (score > bestScore) {
+                    bestMove = move;
+                    bestScore = score;
+                }
+            }
+        }
+        return bestMove;
     }
 
     @Override
@@ -156,55 +386,32 @@ class CatchingState extends State {
 
         if (requiresAction != null && requiresAction)
         {
-            Constants.MOVE bestMove = Constants.MOVE.NEUTRAL;
-            double bestScore;
+//            Constants.MOVE bestMove;
 
-            int currentGhostIndex = game.getGhostCurrentNodeIndex(ghost);
             int lastSeenPacmanPosition = boardData.getPacmanIndexValue();
-            int initialNumberOfFloodedPositions;
-            Constants.MOVE lastMove = game.getGhostLastMoveMade(ghost);
 
-            EnumMap<Constants.GHOST, Constants.MOVE> ghostDirections = boardData.getGhostsDirections();
+//            HashMap<Constants.GHOST, Integer> currentGhostPositions = boardData.getGhostsPositions();
+//            EnumMap<Constants.GHOST, Constants.MOVE> ghostDirections = boardData.getGhostsDirections();
 
-            boolean allScoresEqual = true;
+//            Constants.MOVE lastMove = ghostDirections.get(ghost);
 
-            HashMap<Constants.MOVE, HashSet<Integer>> newFloodedPositions = new HashMap<>();
+//            HashMap<Constants.MOVE, HashSet<Integer>> newFloodedPositions = new HashMap<>();
+//
+//            /** Dla każdego możliwego ruchu mojego duszka przygotuj słownik z polami, które zaleje */
+//            for (Constants.MOVE move : game.getPossibleMoves(currentGhostPositions.get(ghost), lastMove)) {
+//                newFloodedPositions.put(move, new HashSet<>(boardData.getPossiblePacmanPositions()));
+//            }
 
-            for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
-                newFloodedPositions.put(move, new HashSet<>(boardData.getPossiblePacmanPositions()));
-            }
+//            bestMove = CatchingState.getBestMoveWithIteratedFlooding(game, boardData, ghost, lastSeenPacmanPosition,
+//                    lastMove, currentGhostPositions, newFloodedPositions, 1); // TODO: zamienić na 100
 
+            CatchingStateGameTree gameTree = new CatchingStateGameTree(game, boardData, ghost, lastSeenPacmanPosition);
 
-            for (int i=0; i<100 && allScoresEqual; i++) {
-                allScoresEqual = true;
-                HashSet<Double> scores = new HashSet<>();
-                bestMove = Constants.MOVE.NEUTRAL;
-                bestScore = Double.NEGATIVE_INFINITY;
-                initialNumberOfFloodedPositions = boardData.numberOfFloodedPositions();
+            gameTree.createChildren((DefaultMutableTreeNode) (gameTree.tree.getRoot()));
 
-                for (Constants.MOVE move : game.getPossibleMoves(currentGhostIndex, lastMove)) {
-                    HashMap<Constants.GHOST, Integer> ghostPositions = boardData.getGhostsPositions();
-                    int myNewPosition = game.getNeighbour(currentGhostIndex, move);
-                    ghostPositions.put(ghost, myNewPosition);
+            double bestLeafScore = gameTree.getBestLeafScore();
 
-                    newFloodedPositions.put(move, boardData.floodingStoppedByGhost(newFloodedPositions.get(move),
-                            1, ghostPositions));
-
-                    double score = boardData.catchingStateEvaluationFunction(newFloodedPositions.get(move),
-                            initialNumberOfFloodedPositions, i, lastSeenPacmanPosition, myNewPosition);
-
-                    scores.add(score);
-                    if (scores.size() > 1) {
-                        allScoresEqual = false;
-                    }
-
-                    if (score > bestScore) {
-                        bestMove = move;
-                        bestScore = score;
-                    }
-                }
-            }
-            return bestMove;
+            return gameTree.getBestLeafDirection();
         }
         return Constants.MOVE.NEUTRAL;
     }
@@ -553,7 +760,7 @@ class GhostContext extends IndividualGhostController {
             move = state.Handle(this, ghost, game, boardData, ghostStates, timeDue);
         }
 
-//        System.out.println(boardData.toString());
+        System.out.println(boardData.toString());
 
         return move;
     }

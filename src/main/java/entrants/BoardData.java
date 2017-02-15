@@ -97,8 +97,10 @@ interface IBoardData {
 
 	 int numberOfFloodedPositions(HashSet<Integer> floodedPositios);
 	 int numberOfFloodedPositions();
-	 public double catchingStateEvaluationFunction(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+	 double catchingStateEvaluationFunction(HashSet<Integer> floodedPositios, double initialNumberOfFloodedPositions,
                                         int depthInTree, int lastPacmanPosition, int myPosition);
+
+     HashMap<GHOST, Integer> getGhostIndices();
 }
 
 
@@ -540,11 +542,17 @@ public class BoardData implements IBoardData {
 	}
 
 	public HashMap<GHOST, Integer> getGhostsPositions() {
-	    HashMap<GHOST, Integer> ghostsPositions = new HashMap<>();
-	    for (GHOST ghost : GHOST.values()) {
-	        ghostsPositions.put(ghost, getGhostIndex(ghost).value);
+	    return getGhostIndices();
+    }
+
+
+    @Override
+    public HashMap<GHOST, Integer> getGhostIndices() {
+        HashMap<GHOST, Integer> ghostIndices = new HashMap<>();
+        for (GHOST ghost : GHOST.values()) {
+            ghostIndices.put(ghost, getGhostIndex(ghost).value);
         }
-        return ghostsPositions;
+        return ghostIndices;
     }
 
     public EnumMap<GHOST, Constants.MOVE> getGhostsDirections() {
@@ -944,8 +952,9 @@ public class BoardData implements IBoardData {
         return positionsVisibleFromIndex;
     }
 
+    /** Funkcja oceny w stanie Catching (maksymalizujemy) */
     @Override
-    public double catchingStateEvaluationFunction(HashSet<Integer> floodedPositios, int initialNumberOfFloodedPositions,
+    public double catchingStateEvaluationFunction(HashSet<Integer> floodedPositios, double initialNumberOfFloodedPositions,
                                         int depthInTree, int lastPacmanPosition, int myPosition) {
         int numberOfFloodedPositions = numberOfFloodedPositions(floodedPositios);
         double evaluation = -1.0 * (initialNumberOfFloodedPositions +
