@@ -967,7 +967,7 @@ public class BoardData implements IBoardData {
         int numberOfFloodedPositions = floodedPositios.size();
         for (int powerpill : getRemainingPowerPillsIndices()) {
             if (floodedPositios.contains(powerpill)) {
-                numberOfFloodedPositions += 20;
+                numberOfFloodedPositions += 10;
             }
         }
         return numberOfFloodedPositions;

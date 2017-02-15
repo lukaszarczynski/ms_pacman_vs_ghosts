@@ -7,7 +7,6 @@ import pacman.controllers.MASController;
 import pacman.game.Constants;
 import pacman.game.Game;
 import pacman.game.comms.Message;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -137,6 +136,7 @@ class RetreatState extends State {
 
 class CatchingStateGameTree {
     DefaultTreeModel tree;
+    private Random rand = new Random();
 
     private Game game;
     private BoardData boardData;
@@ -190,7 +190,7 @@ class CatchingStateGameTree {
         double bestScore = Double.NEGATIVE_INFINITY;
         for (DefaultMutableTreeNode leaf : leafs) {
             double score = ((CatchingStateNodeData)(leaf.getUserObject())).score;
-            if (score > bestScore) {
+            if (score + (rand.nextDouble() / 10) > bestScore + (rand.nextDouble() / 10)) {
                 bestLeaf = leaf;
                 bestScore = score;
             }
@@ -295,6 +295,14 @@ class CatchingStateGameTree {
                 lastSeenPacmanPosition, childData.myPosition());
     }
 
+    void searchToGivenDepth(DefaultMutableTreeNode node, int maxDepth) {
+        if (maxDepth > 0) {
+            createChildren(node);
+            for (int i = 0; i < node.getChildCount(); i++) {
+                searchToGivenDepth((DefaultMutableTreeNode)(node.getChildAt(i)), maxDepth - 1);
+            }
+        }
+    }
 }
 
 class CatchingStateNodeData {
@@ -353,7 +361,6 @@ class CatchingState extends State {
             bestMove = Constants.MOVE.NEUTRAL;
             bestScore = Double.NEGATIVE_INFINITY;
             initialNumberOfFloodedPositions = boardData.numberOfFloodedPositions();
-            // TODO: boardData.numberOfFloodedPositions() zamienić na liczbę zalanych w rodzicu
 
             for (Constants.MOVE move : game.getPossibleMoves(currentGhostPositions.get(ghost), lastMove)) {
                 HashMap<Constants.GHOST, Integer> ghostPositions = boardData.getGhostsPositions();
@@ -407,7 +414,9 @@ class CatchingState extends State {
 
             CatchingStateGameTree gameTree = new CatchingStateGameTree(game, boardData, ghost, lastSeenPacmanPosition);
 
-            gameTree.createChildren((DefaultMutableTreeNode) (gameTree.tree.getRoot()));
+//            gameTree.createChildren((DefaultMutableTreeNode) (gameTree.tree.getRoot()));
+
+            gameTree.searchToGivenDepth((DefaultMutableTreeNode) (gameTree.tree.getRoot()), 25);
 
             double bestLeafScore = gameTree.getBestLeafScore();
 
