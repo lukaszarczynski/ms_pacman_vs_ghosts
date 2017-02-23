@@ -1,6 +1,8 @@
 // import examples.commGhosts.POCommGhosts;
 import entrants.ghosts.potezne_pigulki.StateGhosts;
 import entrants.pacman.potezne_pigulki.NotQuiteIntelligentPacMan;
+import entrants.pacman.potezne_pigulki.SimpleMCTSPacman;
+import entrants.pacman.potezne_pigulki.SimpleMinMaxPacman;
 import examples.poPacMan.POPacMan;
 import examples.commGhosts.POCommGhosts;
 import pacman.Executor;
@@ -54,53 +56,71 @@ class TestStat {
 public class Main {
 
     public static void main(String[] args) {
-        makeTests(20);
+        PacmanController pacmans[] = {new POPacMan(), new NotQuiteIntelligentPacMan(), new SimpleMinMaxPacman(), new SimpleMCTSPacman()};
+        MASController ghosts[] = {new POCommGhosts(), new StateGhosts()};
+        int trials = 20;
+        makeTests(trials, pacmans, ghosts);
 
-        // Executor executor = new Executor(true, true);
-        // executor.runGame(new NotQuiteIntelligentPacMan(), new StateGhosts(), true, 40);
     }
 
-    public static void makeTests(int trials) {
-        // NOTE: tutaj wszystko to, co chcemy testować:
-        PacmanController pacmans[] = {new POPacMan(), new NotQuiteIntelligentPacMan()};
-        MASController ghosts[] = {new POCommGhosts(), new StateGhosts()};
-        ////////////////
-
+    public static void makeTests(int trials, PacmanController[] pacmans, MASController[] ghosts) {
         LinkedList<TestStat> stats = new LinkedList<>();
 
         for (PacmanController p: pacmans) {
             for (MASController g: ghosts) {
+            	LinkedList<Integer> scores = new LinkedList<>();
+            	LinkedList<Integer> levels = new LinkedList<>();
+            	LinkedList<Integer> times = new LinkedList<>();
+            	String label = "";
                 for (int i = 0; i < trials; ++i) {
-                    stats.add(singleTest(p, g));
+//                    stats.add(singleTest(p, g));
+                	TestStat stat = singleTest(p, g);
+                	System.out.println(stat);
+                	if (stat.e == null) {
+                		scores.add(stat.score);
+                		levels.add(stat.level);
+                		times.add(stat.time);
+                		label = stat.label;
+                	}
                 }
+                System.out.format("SUMMARY OF %s - games: %d, av. score: %.0f, av. level: %.1f, av. time: %.0f\n\n",
+                		label,
+                		scores.size(),
+                		scores.stream().mapToInt(Integer::intValue).average().getAsDouble(),
+                		levels.stream().mapToInt(Integer::intValue).average().getAsDouble(),
+                		times.stream().mapToInt(Integer::intValue).average().getAsDouble());
             }
         }
 
-        // wypisz wyniki:
-        for (TestStat s: stats)
-            if (s.e == null)
-                System.out.println(s.toString());
-        // wypisz błędy:
-        for (TestStat s: stats)
-            if (s.e != null)
-                System.out.println(s.toString());
+//        // wypisz wyniki:
+//        for (TestStat s: stats)
+//            if (s.e == null)
+//                System.out.println(s.toString());
+//        // wypisz błędy:
+//        for (TestStat s: stats)
+//            if (s.e != null)
+//                System.out.println(s.toString());
     }
 
     public static TestStat singleTest(PacmanController pacmanController, MASController ghostsController) {
         String label = pacmanController.getClass().getSimpleName() + " vs " + ghostsController.getClass().getSimpleName();
 
-        BasicMessenger messenger = new BasicMessenger(0, 1, 1);
-        Random rnd = new Random(0L);
-        MASController ghostControllerCopy = ghostsController.copy(true);
+//        BasicMessenger messenger = new BasicMessenger(0, 1, 1);
+//        Random rnd = new Random(0L);
+//        MASController ghostControllerCopy = ghostsController.copy(true);
 
         try {
-            Game game = new Game(rnd.nextLong(), messenger);
-            while (!game.gameOver()) {
-                game.advanceGame(
-                        pacmanController.getMove(game.copy(Constants.GHOST.values().length + 1), System.currentTimeMillis() + 40L),
-                        ghostControllerCopy.getMove(game.copy(), System.currentTimeMillis() + 40L)
-                );
-            }
+//            Game game = new Game(rnd.nextLong(), messenger);
+//            while (!game.gameOver()) {
+//                game.advanceGame(
+//                        pacmanController.getMove(game.copy(Constants.GHOST.values().length + 1), System.currentTimeMillis() + 40L),
+//                        ghostControllerCopy.getMove(game.copy(), System.currentTimeMillis() + 40L)
+//                );
+//            }
+        	
+             MyExecutor executor = new MyExecutor(true, true);
+             Game game = executor.runGame(new NotQuiteIntelligentPacMan(), new StateGhosts(), false, 0);
+        	
             return new TestStat(label, game.getScore(), game.getCurrentLevel(), game.getTotalTime());
         }
         catch (Exception e) {

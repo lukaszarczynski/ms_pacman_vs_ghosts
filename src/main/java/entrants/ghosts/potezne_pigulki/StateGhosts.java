@@ -461,7 +461,7 @@ class CatchingState extends State {
                 if (Objects.equals(boardData.getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(myPosition),
                         boardData.getDistanceToPowerpillWithShortestCycleNearestToSomeGhost())) {
                     boardData.getSmartMessenger().broadcastMessageIAmHeading(selectedPowerpill);
-                    System.out.println(String.format("Go to superpill %d", selectedPowerpill));
+//                    System.out.println(String.format("Go to superpill %d", selectedPowerpill));
                     return new GuardingState(ghost, game, selectedPowerpill);
                 }
             }
@@ -603,7 +603,7 @@ class SearchingState extends State {
                 if (Objects.equals(boardData.getDistanceToPowerpillWithShortestCycleNearestToGivenPosition(myPosition),
                         boardData.getDistanceToPowerpillWithShortestCycleNearestToSomeGhost())) {
                     boardData.getSmartMessenger().broadcastMessageIAmHeading(selectedPowerpill);
-                    System.out.println(String.format("Go to superpill %d", selectedPowerpill));
+//                    System.out.println(String.format("Go to superpill %d", selectedPowerpill));
                     return new GuardingState(ghost, game, selectedPowerpill);
                 }
             }
