@@ -779,7 +779,7 @@ class GhostContext extends IndividualGhostController {
             move = state.Handle(this, ghost, game, boardData, ghostStates, timeDue);
         }
 
-        System.out.println(boardData.toString());
+//        System.out.println(boardData.toString());
 
         return move;
     }
